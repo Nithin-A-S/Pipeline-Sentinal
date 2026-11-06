@@ -40,6 +40,8 @@ export interface FailureTypeDef {
   /** How long the failed run lasted before it stopped (minutes). */
   failMinutes: number;
   rootCause: string;
+  /** One-line summary shown on the AI investigation step; falls back to rootCause. */
+  investigationSummary?: string;
   investigation: string[];
   analysisSteps: string[];
   remediationSteps: string[];
@@ -102,13 +104,20 @@ export const FAILURE_TYPES: FailureTypeDef[] = [
     errorMessage: "Upstream dependency check failed: upstream job Material Master Processing US has not completed — silver table not refreshed",
     executionStatus: "FAILED",
     failMinutes: 3,
-    rootCause: "The upstream job was still incomplete when this downstream run started, so its input table was stale.",
+    rootCause: "The downstream job was triggered before its upstream dependency completed. This resulted in an unmet dependency condition and potential consumption of stale input data.",
+    investigationSummary: "The downstream job started before its upstream dependency completed, potentially resulting in stale input data.",
     investigation: [
-      "Upstream job Material Master Processing US was still running (incomplete) when this run started.",
-      "Upstream is expected to finish in about 12 minutes.",
-      "This pipeline itself is healthy.",
+      "Upstream job Material Master Processing US was still running when the downstream job started.",
+      "The upstream job is estimated to complete in approximately 12 minutes, based on its execution history.",
+      "The downstream job has no independent execution or configuration issue identified.",
+      "The downstream input data freshness should be verified before reprocessing.",
     ],
-    analysisSteps: ["Read the dependency check failure", "Detect that the upstream job is incomplete", "Estimate the upstream completion time", "Confirm no other blocker exists"],
+    analysisSteps: [
+      "Analysed the UPSTREAM_DEPENDENCY_FAILED error.",
+      "Checked the execution status and run history of the upstream job.",
+      "Compared upstream completion status with the downstream start time.",
+      "Checked input table freshness and other dependency conditions.",
+    ],
     remediationSteps: ["Guardrail check: dependency failures may be rerun automatically once the upstream completes", "Verify the dependency: upstream job is incomplete and its output table is stale", "Wait until the upstream job completes successfully", "Rerun the downstream task in {pipeline}", "Validate freshness of the input table"],
     validation: ["Upstream run completed with result_state SUCCESS", "Pipeline run completed with result_state SUCCESS"],
     solution: ["No action needed — Sentinel waits for the upstream job and reruns the downstream task automatically.", "Consider moving the schedule so it starts after its upstream."],
@@ -256,13 +265,21 @@ export const FAILURE_TYPES: FailureTypeDef[] = [
     errorMessage: "Data quality gate failed: Primary Key Uniqueness — 312 duplicate material IDs (MATNR) and 87 rows missing mandatory fields in sap_material_master",
     executionStatus: "FAILED",
     failMinutes: 12,
-    rootCause: "The latest SAP material extract contains duplicate material IDs and rows with missing mandatory fields, breaking the primary key uniqueness check on the material master table.",
+    rootCause: "The 02:10 UTC SAP Material Master source batch contains duplicate material identifiers and incomplete mandatory attributes, resulting in primary-key uniqueness and mandatory-field validation failures.",
+    investigationSummary: "The latest SAP Material Master extract contains duplicate material IDs and missing mandatory attributes, causing data-quality validation failures.",
     investigation: [
-      "Primary Key Uniqueness check failed: 312 MATNR values appear more than once (expected 0 duplicates).",
-      "87 rows are missing mandatory fields (MTART material type, MEINS base unit).",
-      "All affected rows come from a single source batch loaded at 02:10 UTC; the other 9,661 rows are clean.",
+      "Primary-key uniqueness check failed: 312 distinct MATNR values appear more than once.",
+      "87 records have missing mandatory attributes (MTART or MEINS).",
+      "The remaining 9,661 records passed the specified validation checks.",
+      "All identified violations originate from a single source batch loaded at 02:10 UTC.",
     ],
-    analysisSteps: ["Read DQ gate result (Primary Key Uniqueness)", "Find duplicate material IDs", "Find rows missing mandatory fields", "Trace affected rows to a source batch", "Confirm remaining rows are clean"],
+    analysisSteps: [
+      "Analysed the primary-key uniqueness validation failure.",
+      "Identified duplicated MATNR values and the records involved.",
+      "Checked mandatory-field completeness for MTART and MEINS.",
+      "Traced affected records to their source batch and ingestion timestamp.",
+      "Re-evaluated the remaining records against the applicable data-quality rules.",
+    ],
     remediationSteps: ["Validate guardrail: quarantine is reversible", "Quarantine the 399 affected records (312 duplicates + 87 incomplete rows)", "Correct the records — de-duplicate on MATNR and fill mandatory fields from the source — and reload them", "Validate: re-run the Primary Key Uniqueness and mandatory-field checks"],
     validation: ["Primary Key Uniqueness check passed — 0 duplicate material IDs", "Mandatory-field check passed — 0 rows with missing MTART/MEINS"],
     solution: ["Approve quarantine — affected records are isolated, corrected and reloaded.", "Ask the SAP extract team why duplicate material IDs were produced in the 02:10 UTC batch."],

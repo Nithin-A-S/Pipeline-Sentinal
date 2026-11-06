@@ -27,7 +27,7 @@ const STATUS_OPTIONS: { value: StatusFilter; label: string }[] = [
   { value: "RESOLVED", label: "Remediated" },
   { value: "WAITING_APPROVAL", label: "Approval required" },
   { value: "FAILED", label: "Failed" },
-  { value: "REJECTED", label: "Rejected" },
+  { value: "REJECTED", label: "Rejected · Escalated" },
 ];
 
 export default function IncidentsPage() {

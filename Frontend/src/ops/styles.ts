@@ -8,7 +8,7 @@ export const INCIDENT_STATUS_STYLES: Record<IncidentStatus, StatusStyle> = {
   ESCALATION_REQUIRED: toneStyle("Failed", "danger"),
   ESCALATED: toneStyle("Failed", "danger"),
   RESOLVED: toneStyle("Remediated", "success"),
-  REJECTED: toneStyle("Rejected", "neutral"),
+  REJECTED: toneStyle("Rejected · Escalated", "danger"),
 };
 
 export const SEVERITY_STYLES: Record<Severity, StatusStyle> = {

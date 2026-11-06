@@ -178,6 +178,9 @@ export function rejectIncident(id: string) {
   if (!incident || incident.status !== "WAITING_APPROVAL") return;
   const ts = stamp(incident);
   patchIncident(id, (i) => withEvent({ ...i, status: "REJECTED", rejectedBy: CURRENT_USER }, { timestamp: ts, label: "Remediation rejected", actor: "human", detail: `By ${CURRENT_USER}` }));
+  patchIncident(id, (i) => withEvent(i, { timestamp: stamp(i), label: "Escalated to the pipeline owner", actor: "system", detail: "Automatic escalation after the remediation was rejected" }));
+  const rejected = incidentById(id);
+  if (rejected) recordEmail(rejected, "Escalation", "Sentinel AI");
 }
 
 /**

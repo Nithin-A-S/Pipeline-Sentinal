@@ -209,6 +209,8 @@ function buildStory(incident: Incident, def: FailureTypeDef, pl: Plan, rand: () 
     add(3, "Waiting for approval", "system", def.recommendationText);
     if (st === "REJECTED") {
       add(approveAt, "Remediation rejected", "human", `By ${owner.name}`);
+      add(approveAt + 1, "Escalated to the pipeline owner", "system", "Automatic escalation after the remediation was rejected");
+      mail(approveAt + 2);
     } else if (st !== "WAITING_APPROVAL") {
       add(approveAt, "Remediation approved", "human", `By ${owner.name}`);
       add(approveAt + 1, `Remediation started: ${def.remediationLabel}`, "system", runNote ?? "Pipeline started in Databricks");
