@@ -4,6 +4,13 @@ import type { Incident, PipelineRun } from "./types";
 /** An incident is "active" until it is resolved or rejected. */
 export const ACTIVE_STATUSES = new Set(["WAITING_APPROVAL", "REMEDIATING", "FAILED", "ESCALATION_REQUIRED", "ESCALATED"]);
 
+/** Every way an incident can end up shown as "Failed" (escalation pending or already sent). */
+export const FAILED_STATUSES = new Set(["FAILED", "ESCALATION_REQUIRED", "ESCALATED"]);
+
+export function isFailed(i: Incident): boolean {
+  return FAILED_STATUSES.has(i.status);
+}
+
 export function isActive(i: Incident): boolean {
   return ACTIVE_STATUSES.has(i.status);
 }

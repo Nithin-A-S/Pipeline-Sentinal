@@ -2,12 +2,12 @@ import { toneStyle, type StatusStyle } from "@/lib/constants";
 import type { ExecutionStatus, IncidentStatus, Severity } from "./types";
 
 export const INCIDENT_STATUS_STYLES: Record<IncidentStatus, StatusStyle> = {
-  WAITING_APPROVAL: toneStyle("Waiting for approval", "warning"),
-  REMEDIATING: toneStyle("Remediating", "info"),
-  FAILED: toneStyle("Remediation failed", "danger"),
-  ESCALATION_REQUIRED: toneStyle("Escalation required", "danger"),
-  ESCALATED: toneStyle("Escalated · mail sent", "neutral"),
-  RESOLVED: toneStyle("Resolved", "success"),
+  WAITING_APPROVAL: toneStyle("Approval required", "neutral"),
+  REMEDIATING: toneStyle("Remediation", "neutral"),
+  FAILED: toneStyle("Failed", "danger"),
+  ESCALATION_REQUIRED: toneStyle("Failed", "danger"),
+  ESCALATED: toneStyle("Failed", "danger"),
+  RESOLVED: toneStyle("Remediated", "success"),
   REJECTED: toneStyle("Rejected", "neutral"),
 };
 

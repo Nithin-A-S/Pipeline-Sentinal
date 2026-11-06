@@ -9,7 +9,7 @@ import { StatusBadge } from "@/components/common/StatusBadge";
 import { EmptyState } from "@/components/common/EmptyState";
 import { Card, CardHeader } from "@/components/common/Card";
 import { WORKSPACE_BY_ID, inWorkspace } from "@/ops/catalog";
-import { isActive } from "@/ops/derive";
+import { isActive, isFailed } from "@/ops/derive";
 import { FAILURE_BY_KEY, FAILURE_TYPES, type FailureKey } from "@/ops/failureTypes";
 import { useOps } from "@/ops/store";
 import { INCIDENT_STATUS_STYLES, SEVERITY_STYLES, SLA_STYLES } from "@/ops/styles";
@@ -23,11 +23,9 @@ type StatusFilter = "ALL" | "ACTIVE" | IncidentStatus;
 const STATUS_OPTIONS: { value: StatusFilter; label: string }[] = [
   { value: "ALL", label: "All" },
   { value: "ACTIVE", label: "Active" },
-  { value: "RESOLVED", label: "Resolved" },
-  { value: "REMEDIATING", label: "Remediating" },
-  { value: "WAITING_APPROVAL", label: "Waiting for approval" },
-  { value: "ESCALATION_REQUIRED", label: "Escalation required" },
-  { value: "ESCALATED", label: "Escalated" },
+  { value: "RESOLVED", label: "Remediated" },
+  { value: "WAITING_APPROVAL", label: "Approval required" },
+  { value: "FAILED", label: "Failed" },
   { value: "REJECTED", label: "Rejected" },
 ];
 
@@ -44,7 +42,7 @@ export default function IncidentsPage() {
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
     return scoped
-      .filter((i) => (status === "ALL" ? true : status === "ACTIVE" ? isActive(i) : i.status === status))
+      .filter((i) => (status === "ALL" ? true : status === "ACTIVE" ? isActive(i) : status === "FAILED" ? isFailed(i) : i.status === status))
       .filter((i) => failure === "ALL" || i.failureKey === failure)
       .filter((i) => !q || i.id.toLowerCase().includes(q) || i.pipeline.toLowerCase().includes(q) || FAILURE_BY_KEY[i.failureKey].label.toLowerCase().includes(q))
       .sort((a, b) => (a.detectedAt < b.detectedAt ? 1 : -1));
@@ -79,7 +77,7 @@ export default function IncidentsPage() {
             { label: "Created today", value: counts.today },
             { label: "Active", value: counts.active },
             { label: "Critical and active", value: counts.critical },
-            { label: "Resolved", value: counts.resolved },
+            { label: "Remediated", value: counts.resolved },
           ].map((c) => (
             <div key={c.label} data-spotlight className="rounded-xl border border-border bg-surface px-4 py-3.5 shadow-xs">
               <p className="text-[11px] font-medium text-text-tertiary">{c.label}</p>

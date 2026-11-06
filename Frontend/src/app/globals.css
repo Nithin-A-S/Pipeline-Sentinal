@@ -5,7 +5,8 @@
  * from one place. `color-scheme` decides which side applies: it follows the OS by default and is
  * pinned by the data-theme attribute that the theme toggle sets on <html>.
  *
- * One graphite family (cool-tinted), one brand accent (crimson), four status hues.
+ * One graphite family (cool-tinted), one brand accent (logo crimson), four status hues:
+ * green for pass/success, and danger/warning/info taken from the logo (crimson, orange-red, wine).
  *
  * Scale convention for hues:
  *   *-50   a faint tinted wash for backgrounds
@@ -36,13 +37,13 @@
   --color-navy-600: light-dark(#cdd3de, #2a323e);
 
   /* Brand accent: KaarTech crimson, lifted for dark surfaces and deepened for light ones */
-  --color-accent-50: light-dark(rgb(195 34 42 / 0.07), rgb(226 62 68 / 0.11));
-  --color-accent-100: light-dark(rgb(195 34 42 / 0.13), rgb(226 62 68 / 0.2));
-  --color-accent-200: light-dark(rgb(195 34 42 / 0.28), rgb(226 62 68 / 0.38));
-  --color-accent-400: light-dark(#c8232b, #f0686c);
-  --color-accent-500: light-dark(#c6232a, #d3272d);
-  --color-accent-600: light-dark(#b01e25, #f2797d);
-  --color-accent-700: light-dark(#8c161c, #ff9a9d);
+  --color-accent-50: light-dark(rgb(168 23 28 / 0.07), rgb(214 44 50 / 0.12));
+  --color-accent-100: light-dark(rgb(168 23 28 / 0.13), rgb(214 44 50 / 0.2));
+  --color-accent-200: light-dark(rgb(168 23 28 / 0.28), rgb(214 44 50 / 0.38));
+  --color-accent-400: light-dark(#b81c22, #e8484d);
+  --color-accent-500: light-dark(#a8171c, #c8222a);
+  --color-accent-600: light-dark(#93131a, #ef6a6e);
+  --color-accent-700: light-dark(#740f14, #ff9a9d);
 
   /* Text */
   --color-text-primary: light-dark(#0f131a, #e8ecf2);
@@ -60,20 +61,20 @@
   --color-success-600: light-dark(#0c8559, #4fd29c);
   --color-success-700: light-dark(#096544, #86e3bb);
 
-  --color-warning-50: light-dark(rgb(200 125 10 / 0.1), rgb(224 160 50 / 0.1));
-  --color-warning-500: light-dark(#d68a12, #dd9d2e);
-  --color-warning-600: light-dark(#a66608, #eeb24a);
-  --color-warning-700: light-dark(#7d4c07, #f6cb78);
+  --color-warning-50: light-dark(rgb(224 81 42 / 0.1), rgb(240 100 60 / 0.12));
+  --color-warning-500: light-dark(#e0512a, #f0643c);
+  --color-warning-600: light-dark(#c2401c, #f68461);
+  --color-warning-700: light-dark(#93300f, #fbae91);
 
-  --color-danger-50: light-dark(rgb(214 52 82 / 0.08), rgb(240 98 120 / 0.1));
-  --color-danger-500: light-dark(#d93a55, #e8506a);
-  --color-danger-600: light-dark(#bd2c47, #f4768b);
-  --color-danger-700: light-dark(#962037, #fa9eae);
+  --color-danger-50: light-dark(rgb(190 26 32 / 0.08), rgb(222 52 58 / 0.12));
+  --color-danger-500: light-dark(#be1a20, #de343a);
+  --color-danger-600: light-dark(#a1151b, #f0676b);
+  --color-danger-700: light-dark(#7d1015, #fb9a9d);
 
-  --color-info-50: light-dark(rgb(37 99 235 / 0.08), rgb(90 167 255 / 0.1));
-  --color-info-500: light-dark(#3a7ce8, #4f9bf5);
-  --color-info-600: light-dark(#2562c9, #7ab5fa);
-  --color-info-700: light-dark(#1b4a9e, #a6cdfc);
+  --color-info-50: light-dark(rgb(125 18 24 / 0.08), rgb(200 80 86 / 0.12));
+  --color-info-500: light-dark(#8e161c, #c9545a);
+  --color-info-600: light-dark(#7d1218, #e07c81);
+  --color-info-700: light-dark(#600d12, #f2a7aa);
 
   --color-neutral-50: light-dark(rgb(100 116 139 / 0.09), rgb(148 163 184 / 0.08));
   --color-neutral-500: light-dark(#6c7585, #7a8494);

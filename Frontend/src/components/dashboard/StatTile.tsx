@@ -60,7 +60,7 @@ export function StatTile({ label, value, supporting, tone = "neutral", trend, ri
       </div>
       {hasSplit ? (
         <div className="mt-2.5 flex h-1 gap-[2px] overflow-hidden rounded-full" aria-hidden="true">
-          <div className="animate-grow-x rounded-l-full bg-success-500/60" style={{ width: `${(split.good / (split.good + split.bad)) * 100}%` }} />
+          <div className="animate-grow-x rounded-l-full bg-success-500" style={{ width: `${(split.good / (split.good + split.bad)) * 100}%` }} />
           <div className="animate-grow-x rounded-r-full bg-danger-500" style={{ width: `${(split.bad / (split.good + split.bad)) * 100}%`, "--i": 1 } as CSSProperties} />
         </div>
       ) : null}

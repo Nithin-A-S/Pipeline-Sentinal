@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import Link from "next/link";
-import { ArrowUpRight, ChevronRight } from "lucide-react";
+import { AlertTriangle, ArrowUpRight, BarChart3, ChevronRight } from "lucide-react";
 import { PageHeader } from "@/components/common/PageHeader";
 import { Card, CardHeader } from "@/components/common/Card";
 import { EmptyState } from "@/components/common/EmptyState";
@@ -113,12 +113,20 @@ export default function OverviewPage() {
         <div className="grid grid-cols-1 gap-4 xl:grid-cols-12">
           <Card className="animate-rise xl:col-span-8">
             <CardHeader title="Run activity" description="Each cell is one run today; failed runs open their incident." />
-            <div className="space-y-7 px-5 py-5">
+            <div className="space-y-4 px-5 py-5">
               <RunTimeline runs={view.todayRuns} />
               <div>
-                <div className="mb-3 flex items-baseline justify-between">
-                  <p className="text-xs font-medium text-text-secondary">Daily outcome, last {days.length} days</p>
-                  <p className="num text-[11px] text-text-tertiary">{formatNumber(view.incidentCount)} incidents in window</p>
+                <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+                  <p className="flex items-center gap-2 text-sm font-semibold text-text-primary">
+                    <span className="flex size-7 items-center justify-center rounded-lg bg-success-50 text-success-600">
+                      <BarChart3 className="size-3.5" />
+                    </span>
+                    Daily outcome, last {days.length} days
+                  </p>
+                  <p className="num flex items-center gap-1.5 rounded-full bg-danger-50 px-3 py-1 text-xs font-medium text-danger-700">
+                    <AlertTriangle className="size-3.5" />
+                    {formatNumber(view.incidentCount)} incidents in window
+                  </p>
                 </div>
                 <FailureTrend days={days} stats={view.perDay} today={today} />
               </div>

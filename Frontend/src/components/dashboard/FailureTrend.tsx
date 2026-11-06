@@ -28,12 +28,11 @@ export function FailureTrend({ days, stats, today }: { days: string[]; stats: Ma
             const s = stats.get(d) ?? { total: 0, failed: 0 };
             const h = (s.total / peak) * 100;
             const fh = s.total ? (s.failed / s.total) * 100 : 0;
-            const isToday = d === today;
             return (
               <li key={d} className="group relative flex min-w-0 flex-1 items-end" tabIndex={0} aria-label={`${label(d)}: ${s.failed} failed of ${s.total} runs`}>
                 <div style={{ height: `${h}%`, "--i": i } as CSSProperties} className="animate-grow-y flex w-full flex-col overflow-hidden rounded-[4px]">
-                  <div className={cn("flex-1 transition-colors", isToday ? "bg-success-500/25" : "bg-success-500/[0.13] group-hover:bg-success-500/25")} />
-                  <div style={{ height: `${fh}%` }} className={cn("transition-[filter]", isToday ? "bg-danger-500" : "bg-danger-500/75 group-hover:bg-danger-500")} />
+                  <div className="flex-1 bg-success-500/60 transition-colors duration-150 group-hover:bg-success-500" />
+                  <div style={{ height: `${fh}%` }} className="bg-danger-500/75 transition-colors duration-150 group-hover:bg-danger-500" />
                 </div>
                 <div className="pointer-events-none absolute bottom-full left-1/2 z-10 mb-2 -translate-x-1/2 whitespace-nowrap rounded-lg border border-border-strong bg-navy-800 px-2.5 py-1.5 text-[11px] opacity-0 shadow-lg transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100">
                   <p className="font-medium text-text-primary">{label(d)}</p>

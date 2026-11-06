@@ -22,8 +22,8 @@ export function RunTimeline({ runs }: { runs: PipelineRun[] }) {
               style={{ "--i": i } as CSSProperties}
               className={
                 failed
-                  ? "animate-grow-y block h-full w-full rounded-[3px] bg-danger-500 shadow-[0_0_10px_-2px_var(--color-danger-500)] transition-[filter] hover:brightness-125"
-                  : "animate-grow-y block h-full w-full rounded-[3px] bg-success-500/30 transition-colors hover:bg-success-500/70"
+                  ? "animate-grow-y block h-full w-full rounded-[3px] bg-danger-500/75 transition-colors duration-150 hover:bg-danger-500"
+                  : "animate-grow-y block h-full w-full rounded-[3px] bg-success-500/60 transition-colors duration-150 hover:bg-success-500"
               }
             />
           );
@@ -42,15 +42,15 @@ export function RunTimeline({ runs }: { runs: PipelineRun[] }) {
       </ul>
       <div className="num mt-2 flex justify-between font-mono text-[10px] text-text-tertiary">
         <span>{formatTime(first.startTime)}</span>
-        <span className="flex items-center gap-3">
-          <span className="flex items-center gap-1.5">
-            <span className="size-1.5 rounded-sm bg-success-500/50" /> Success
-          </span>
-          <span className="flex items-center gap-1.5">
-            <span className="size-1.5 rounded-sm bg-danger-500" /> Failed
-          </span>
-        </span>
         <span>{formatTime(last.startTime)}</span>
+      </div>
+      <div className="mt-3 flex items-center justify-center gap-2.5 text-xs font-medium">
+        <span className="flex items-center gap-1.5 rounded-full bg-success-50 px-3 py-1 text-success-700">
+          <span className="size-2 rounded-full bg-success-500" /> Success
+        </span>
+        <span className="flex items-center gap-1.5 rounded-full bg-danger-50 px-3 py-1 text-danger-700">
+          <span className="size-2 rounded-full bg-danger-500" /> Failed
+        </span>
       </div>
     </div>
   );

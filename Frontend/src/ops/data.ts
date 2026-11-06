@@ -35,38 +35,44 @@ interface Plan {
   failed: boolean;
   /** What happens if a person approves this incident's remediation in the demo. */
   outcome: "SUCCESS" | "FAILED";
+  /** Fixed incident ID, so a demo incident keeps the same ID every day. */
+  id?: string;
 }
 
-function plan(key: FailureKey, status: IncidentStatus, extra: { failed?: boolean; outcome?: "FAILED" } = {}): Plan {
+function plan(key: FailureKey, status: IncidentStatus, extra: { failed?: boolean; outcome?: "FAILED"; id?: string } = {}): Plan {
   const def = FAILURE_BY_KEY[key];
   const failed = extra.failed ?? ((status === "ESCALATED" && def.autoRemediable) || (status === "ESCALATION_REQUIRED" && def.autoRun));
-  return { key, status, failed, outcome: extra.outcome ?? "SUCCESS" };
+  return { key, status, failed, outcome: extra.outcome ?? "SUCCESS", id: extra.id };
 }
 
 /**
- * Today's 18 failed runs: all 14 failure types, plus 4 repeats. The newest
+ * Today's 20 failed runs: all 10 failure types, plus 10 repeats. The newest
  * runs are resolved / remediating / escalated, so "waiting for approval" is
  * never what you see first.
  */
 const TODAY_PLAN: Record<string, Plan> = {
-  "MM_US#0": plan("TRANSIENT_INFRASTRUCTURE", "RESOLVED"),
-  "PS_US#0": plan("TEMPORARY_EXECUTION_FAILURE", "ESCALATION_REQUIRED"),
-  "MM_US#1": plan("SOURCE_FILE_UNAVAILABLE", "RESOLVED"),
+  "MM_US#0": plan("CONNECTIVITY_FAILURE", "RESOLVED"),
+  "PS_US#0": plan("CONNECTIVITY_FAILURE", "ESCALATION_REQUIRED"),
+  "MM_US#1": plan("DEPENDENCY_FAILURE", "RESOLVED"),
   "PS_US#1": plan("DQ_FAILURE", "WAITING_APPROVAL"),
   "MM_US#2": plan("REPEATED_FAILURE", "ESCALATION_REQUIRED"),
-  "PS_US#2": plan("UNKNOWN", "ESCALATED"),
-  "MM_US#4": plan("SCHEMA_MISMATCH", "REMEDIATING"),
+  "PS_US#2": plan("REPEATED_FAILURE", "ESCALATED"),
+  "MM_US#4": plan("SCHEMA_MISMATCH", "RESOLVED"),
   "PS_US#3": plan("PERMISSION_FAILURE", "WAITING_APPROVAL", { outcome: "FAILED" }),
   "MM_US#5": plan("RESOURCE_EXHAUSTION", "RESOLVED"),
   "PS_US#4": plan("TIMEOUT_FAILURE", "WAITING_APPROVAL"),
   "MM_US#6": plan("DEPENDENCY_FAILURE", "ESCALATED"),
-  "PS_US#6": plan("SLA_BREACH", "RESOLVED"),
-  "MM_US#7": plan("DATA_CORRUPTION", "REMEDIATING"),
+  "PS_US#6": plan("TIMEOUT_FAILURE", "RESOLVED"),
+  "MM_US#7": plan("DATA_CORRUPTION", "RESOLVED"),
   "PS_US#7": plan("CONFIGURATION_FAILURE", "RESOLVED"),
-  "MM_CA#0": plan("TRANSIENT_INFRASTRUCTURE", "REMEDIATING"),
+  "MM_CA#0": plan("CONNECTIVITY_FAILURE", "ESCALATION_REQUIRED"),
   "PS_DE#1": plan("DQ_FAILURE", "WAITING_APPROVAL", { outcome: "FAILED" }),
   "GOLD_GB#0": plan("SCHEMA_MISMATCH", "WAITING_APPROVAL"),
   "GOLD_SG#0": plan("TIMEOUT_FAILURE", "RESOLVED"),
+  // Dependency failure demo: upstream job incomplete → verify dependency → wait → rerun downstream task.
+  "GOLD_US#1": plan("DEPENDENCY_FAILURE", "RESOLVED", { id: "INC-D3E7A102" }),
+  // Data quality demo (Primary Key Uniqueness): duplicate material IDs / missing mandatory fields → quarantine → correct/reload → validate.
+  "MM_US#3": plan("DQ_FAILURE", "RESOLVED", { id: "INC-9A4C1E07" }),
 };
 
 /** Failed runs on each earlier day, keyed by how many days ago it was. */
@@ -74,12 +80,12 @@ const PAST_FAILURES: Record<number, number> = { 1: 12, 2: 15, 3: 17, 4: 13, 5: 1
 
 /** Incidents from earlier days that are still open (keyed by days ago): 12 here + 12 open today = 24 active. */
 const CARRY_OVER: Record<number, Plan[]> = {
-  1: [plan("PERMISSION_FAILURE", "WAITING_APPROVAL"), plan("DATA_CORRUPTION", "WAITING_APPROVAL", { outcome: "FAILED" }), plan("UNKNOWN", "ESCALATED"), plan("RESOURCE_EXHAUSTION", "WAITING_APPROVAL")],
+  1: [plan("PERMISSION_FAILURE", "WAITING_APPROVAL"), plan("DATA_CORRUPTION", "WAITING_APPROVAL", { outcome: "FAILED" }), plan("REPEATED_FAILURE", "ESCALATED"), plan("RESOURCE_EXHAUSTION", "WAITING_APPROVAL")],
   2: [plan("REPEATED_FAILURE", "ESCALATED"), plan("SCHEMA_MISMATCH", "WAITING_APPROVAL"), plan("DQ_FAILURE", "WAITING_APPROVAL")],
-  3: [plan("UNKNOWN", "ESCALATED")],
+  3: [plan("REPEATED_FAILURE", "ESCALATED")],
   4: [plan("CONFIGURATION_FAILURE", "WAITING_APPROVAL")],
   5: [plan("PERMISSION_FAILURE", "WAITING_APPROVAL")],
-  6: [plan("SOURCE_FILE_UNAVAILABLE", "WAITING_APPROVAL"), plan("REPEATED_FAILURE", "ESCALATION_REQUIRED")],
+  6: [plan("TIMEOUT_FAILURE", "WAITING_APPROVAL"), plan("REPEATED_FAILURE", "ESCALATION_REQUIRED")],
 };
 
 const HEX = "0123456789ABCDEF";
@@ -265,7 +271,8 @@ export function generateDataset(nowMs: number): Dataset {
       }
       const endMs = startMs + duration * 60000 + seededInt(rand, 0, 40) * 1000;
       const runId = digits(rand, 15);
-      const incidentId = def ? `INC-${hex(rand, 8)}` : null;
+      const generatedId = def ? `INC-${hex(rand, 8)}` : null;
+      const incidentId = pl?.id ?? generatedId;
 
       const run: PipelineRun = {
         date: day,

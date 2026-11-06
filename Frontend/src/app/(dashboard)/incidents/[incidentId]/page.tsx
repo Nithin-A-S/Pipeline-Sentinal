@@ -22,7 +22,6 @@ import {
   UserRound,
   Wrench,
   XCircle,
-  Bot,
   type LucideIcon,
 } from "lucide-react";
 import { PageHeader } from "@/components/common/PageHeader";
@@ -139,57 +138,54 @@ interface FlowNode {
   state: NodeState;
 }
 
-/** The status path this incident takes, with what has happened so far and what comes next. */
+/**
+ * The remediation flow for this incident. Steps still to come (or in progress) are
+ * grey, completed steps are green, and a failed remediation is red.
+ */
 function flowFor(i: Incident, def: FailureTypeDef): { nodes: FlowNode[]; hint: string | null } {
   const st = i.status;
   const n = (label: string, state: NodeState): FlowNode => ({ label, state });
   const nodes: FlowNode[] = [n("Incident created", "done")];
   let hint: string | null = null;
+  const failedHint = "If the remediation fails, the incident is marked Failed and you send the escalation mail to the pipeline owner.";
+
+  const remediation = () => {
+    if (st === "REMEDIATING") {
+      nodes.push(n("Remediation", "current"));
+      hint = failedHint;
+    } else if (i.remediationFailed) {
+      nodes.push(n("Failed", "failed"));
+      if (st === "ESCALATION_REQUIRED") hint = "Send the escalation mail to the pipeline owner.";
+      if (st === "RESOLVED") nodes.push(n("Remediated by owner", "done"));
+    } else if (st === "RESOLVED") {
+      nodes.push(n("Remediated", "done"));
+    } else {
+      nodes.push(n("Remediation", "pending"));
+      hint = failedHint;
+    }
+  };
 
   if (def.autoRun) {
-    nodes.push(n("Automatic remediation", st === "REMEDIATING" ? "current" : "done"));
-    if (st === "REMEDIATING") {
-      nodes.push(n("Resolved", "pending"));
-      hint = "If the automatic remediation fails, you are asked to escalate and the pipeline owner is emailed.";
-    } else if (!i.remediationFailed) {
-      nodes.push(n("Resolved", "done"));
-    } else {
-      nodes.push(n("Remediation failed", "failed"));
-      nodes.push(n("Escalation required", st === "ESCALATION_REQUIRED" ? "current" : "done"));
-      nodes.push(n("Escalated · mail sent", st === "ESCALATION_REQUIRED" ? "pending" : st === "ESCALATED" ? "current" : "done"));
-      if (st === "RESOLVED") nodes.push(n("Resolved by owner", "done"));
-    }
+    remediation();
   } else if (!def.autoRemediable) {
-    nodes.push(n("Escalation required", st === "ESCALATION_REQUIRED" ? "current" : "done"));
-    nodes.push(n("Escalated · mail sent", st === "ESCALATION_REQUIRED" ? "pending" : st === "ESCALATED" ? "current" : "done"));
-    nodes.push(n("Resolved by owner", st === "RESOLVED" ? "done" : "pending"));
+    nodes.push(n("Failed", "failed"));
+    if (st === "ESCALATION_REQUIRED") hint = "AI cannot remediate this failure. Send the escalation mail to the pipeline owner.";
+    nodes.push(n(st === "RESOLVED" ? "Remediated by owner" : "Remediation", st === "RESOLVED" ? "done" : "pending"));
+  } else if (st === "WAITING_APPROVAL") {
+    nodes.push(n("Waiting for approval", "current"), n("Remediation", "pending"));
+    hint = "Approval required — approve to start the remediation, or reject to close this incident.";
+  } else if (st === "REJECTED") {
+    nodes.push(n("Rejected", "failed"));
   } else {
-    nodes.push(n("Waiting for approval", st === "WAITING_APPROVAL" ? "current" : "done"));
-    if (st === "REJECTED") {
-      nodes.push(n("Rejected", "failed"));
-    } else if (st === "WAITING_APPROVAL") {
-      nodes.push(n("Remediating", "pending"), n("Resolved", "pending"));
-      hint = "If the remediation fails, the incident is escalated automatically and the pipeline owner is emailed.";
-    } else {
-      nodes.push(n("Remediating", st === "REMEDIATING" ? "current" : "done"));
-      if (st === "REMEDIATING") {
-        nodes.push(n("Resolved", "pending"));
-        hint = "If the remediation fails, the incident is escalated automatically and the pipeline owner is emailed.";
-      } else if (!i.remediationFailed) {
-        nodes.push(n("Resolved", "done"));
-      } else {
-        nodes.push(n("Remediation failed", "failed"));
-        nodes.push(n("Escalated · mail sent", st === "ESCALATED" ? "current" : st === "RESOLVED" ? "done" : "pending"));
-        if (st === "RESOLVED") nodes.push(n("Resolved by owner", "done"));
-      }
-    }
+    nodes.push(n("Approved", "done"));
+    remediation();
   }
   return { nodes, hint };
 }
 
 const NODE_STYLE: Record<NodeState, string> = {
   done: "border-success-500/40 bg-success-50 text-success-700",
-  current: "border-accent-500/50 bg-accent-50 text-accent-700 ring-2 ring-accent-500/20",
+  current: "border-border-strong bg-surface-muted text-text-tertiary",
   pending: "border-border bg-surface text-text-tertiary",
   failed: "border-danger-500/40 bg-danger-50 text-danger-700",
 };
@@ -203,7 +199,7 @@ function FlowTrail({ incident, def }: { incident: Incident; def: FailureTypeDef 
         {nodes.map((node, idx) => (
           <li key={`${node.label}-${idx}`} className="flex items-center gap-1.5">
             <span className={cn("flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium", NODE_STYLE[node.state])}>
-              {node.state === "current" && <span className="size-1.5 animate-pulse rounded-full bg-accent-500" />}
+              {node.state === "current" && <span className="size-1.5 animate-pulse rounded-full bg-text-tertiary" />}
               {node.state === "done" && <CheckCircle2 className="size-3" />}
               {node.state === "failed" && <XCircle className="size-3" />}
               {node.label}
@@ -302,20 +298,18 @@ export default function IncidentDetailPage() {
           ? "The remediation failed"
           : status === "ESCALATION_REQUIRED"
             ? failed
-              ? "Automatic remediation failed — escalation required"
-              : "AI cannot remediate this — escalation required"
+              ? "Failed — send the escalation mail to the pipeline owner"
+              : "Failed — AI cannot remediate this; send the escalation mail to the pipeline owner"
             : status === "ESCALATED"
-              ? failed
-                ? "The remediation failed — escalated to the pipeline owner"
-                : "Escalated to the pipeline owner"
+              ? "Failed — the pipeline owner has been emailed"
               : status === "RESOLVED"
                 ? failed
-                  ? "The remediation failed — fixed by the pipeline owner"
+                  ? "Failed — remediated by the pipeline owner"
                   : def.autoRun
-                    ? `Resolved automatically — ${def.remediationLabel.toLowerCase()} completed`
+                    ? `Remediated automatically — ${def.remediationLabel.toLowerCase()} completed`
                     : !def.autoRemediable
-                      ? "Fixed by the pipeline owner"
-                      : `${def.remediationLabel} completed`
+                      ? "Remediated by the pipeline owner"
+                      : `Remediated — ${def.remediationLabel.toLowerCase()} completed`
                 : "Rejected — no action was taken";
 
   const slaGap = incident.durationMinutes - SLA_BASELINE_MINUTES;
@@ -323,12 +317,12 @@ export default function IncidentDetailPage() {
   const closed = status === "RESOLVED";
 
   const statusNote: Record<Incident["status"], string> = {
-    WAITING_APPROVAL: "Waiting for your approval. Approve to start the remediation, or reject to close this incident.",
+    WAITING_APPROVAL: "Approval required. Approve to start the remediation, or reject to close this incident.",
     REMEDIATING: def.autoRun ? "Sentinel is remediating this automatically. No approval is needed." : "The remediation is running in Databricks.",
-    FAILED: "The remediation failed. The incident is being escalated to the pipeline owner.",
-    ESCALATION_REQUIRED: failed ? "Automatic remediation failed. Escalate this incident by sending the email to the pipeline owner." : "AI cannot remediate this failure. Escalate it by sending the email to the pipeline owner.",
-    ESCALATED: "Escalated. The pipeline owner has been emailed and is working on the fix.",
-    RESOLVED: def.autoRun && !failed ? "Resolved automatically. No approval was needed." : failed ? "Resolved after the pipeline owner fixed the issue." : "This incident is resolved.",
+    FAILED: "The remediation failed. Send the escalation mail to the pipeline owner.",
+    ESCALATION_REQUIRED: failed ? "The remediation failed. Send the escalation mail to the pipeline owner." : "AI cannot remediate this failure. Send the escalation mail to the pipeline owner.",
+    ESCALATED: "Failed. The pipeline owner has been emailed and is working on the fix.",
+    RESOLVED: def.autoRun && !failed ? "Remediated automatically. No approval was needed." : failed ? "Remediated after the pipeline owner fixed the issue." : "This incident is remediated.",
     REJECTED: "The remediation was rejected, so no action was taken.",
   };
 
@@ -519,13 +513,6 @@ export default function IncidentDetailPage() {
                     <span className="font-semibold">AI cannot perform this remediation.</span> {def.aiLimit}
                   </p>
                 </div>
-              ) : def.autoRun ? (
-                <div className="mb-4 flex gap-2.5 rounded-lg border border-accent-500/25 bg-accent-50 px-3.5 py-3 text-sm text-accent-700">
-                  <Bot className="mt-0.5 size-4 shrink-0" />
-                  <p>
-                    <span className="font-semibold">AI performs this automatically.</span> {def.recommendationText}. No approval is needed — a person is only asked to act if the remediation fails.
-                  </p>
-                </div>
               ) : null}
 
               <div className="mb-3 grid grid-cols-2 gap-x-6 gap-y-3 sm:grid-cols-4">
@@ -584,7 +571,7 @@ export default function IncidentDetailPage() {
               icon={Mail}
               title="Notification and escalation"
               state={emails.length > 0 ? "done" : mustEscalate ? "active" : "pending"}
-              summary={emails.length > 0 ? `${emails.length} email${emails.length > 1 ? "s" : ""} sent to ${incident.owner.name}` : mustEscalate ? "Escalation required — send the email to the pipeline owner" : "No email has been sent yet"}
+              summary={emails.length > 0 ? `${emails.length} email${emails.length > 1 ? "s" : ""} sent to ${incident.owner.name}` : mustEscalate ? "Failed — send the escalation mail to the pipeline owner" : "No email has been sent yet"}
               defaultOpen={emails.length > 0 || mustEscalate}
             >
               {emails.length === 0 ? (
@@ -633,7 +620,7 @@ export default function IncidentDetailPage() {
                   ["Expected classification", `${def.label} (${def.key})`],
                   ["Expected workflow", def.regression.expectedWorkflow],
                   ["Expected remediation", `${def.recommendationText} (${def.recommendation})`],
-                  ["Expected final state", def.autoRun ? "Resolved automatically, with validation passed" : def.autoRemediable ? "Resolved, with validation passed" : "Escalated, then resolved by the pipeline owner"],
+                  ["Expected final state", def.autoRun ? "Remediated automatically, with validation passed" : def.autoRemediable ? "Remediated, with validation passed" : "Failed, then remediated by the pipeline owner"],
                   ["Current state", closed ? `Resolved on ${formatDateTime(incident.resolvedAt)} UTC` : INCIDENT_STATUS_STYLES[status].label],
                 ].map(([label, value]) => (
                   <div key={label} className="grid gap-1 px-3.5 py-2.5 sm:grid-cols-[11rem_1fr]">

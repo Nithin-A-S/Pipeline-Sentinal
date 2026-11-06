@@ -2,11 +2,17 @@ import type { CSSProperties } from "react";
 import { INCIDENT_STATUS_STYLES } from "@/ops/styles";
 import type { IncidentStatus } from "@/ops/types";
 
-const ORDER: IncidentStatus[] = ["RESOLVED", "WAITING_APPROVAL", "REMEDIATING", "ESCALATION_REQUIRED", "ESCALATED", "FAILED", "REJECTED"];
+const ORDER: IncidentStatus[] = ["RESOLVED", "WAITING_APPROVAL", "REMEDIATING", "FAILED", "REJECTED"];
+
+/** Escalation pending and escalation sent are both shown as "Failed", so they share one segment. */
+function countFor(counts: Partial<Record<IncidentStatus, number>>, s: IncidentStatus): number {
+  if (s === "FAILED") return (counts.FAILED ?? 0) + (counts.ESCALATION_REQUIRED ?? 0) + (counts.ESCALATED ?? 0);
+  return counts[s] ?? 0;
+}
 
 /** One segmented bar across every incident in the window, with a legend. */
 export function IncidentBreakdown({ counts }: { counts: Partial<Record<IncidentStatus, number>> }) {
-  const parts = ORDER.map((s) => ({ status: s, n: counts[s] ?? 0 })).filter((p) => p.n > 0);
+  const parts = ORDER.map((s) => ({ status: s, n: countFor(counts, s) })).filter((p) => p.n > 0);
   const total = parts.reduce((sum, p) => sum + p.n, 0);
 
   return (
