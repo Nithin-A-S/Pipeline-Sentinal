@@ -30,7 +30,9 @@ export function buildEmail(incident: Incident): EmailDraft {
       ? `CRITICAL — runtime ${incident.durationMinutes} min vs ${SLA_BASELINE_MINUTES} min baseline`
       : `Safe — runtime ${incident.durationMinutes} min vs ${SLA_BASELINE_MINUTES} min baseline`;
 
-  const why = incident.status === "REJECTED"
+  const why = def.engineerFix
+    ? "Data-quality fixes are made by the data engineer, so the automatic remediation was rejected and the incident is being escalated to you."
+    : incident.status === "REJECTED"
     ? `The recommended remediation was rejected${incident.rejectedBy ? ` by ${incident.rejectedBy}` : ""}, so no automatic fix was applied and the incident is being escalated to you.`
     : incident.remediationFailed
     ? "Sentinel tried to fix this automatically, but the remediation did not succeed, so the incident is being escalated to you."

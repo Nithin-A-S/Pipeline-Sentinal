@@ -41,6 +41,8 @@ interface Plan {
 
 function plan(key: FailureKey, status: IncidentStatus, extra: { failed?: boolean; outcome?: "FAILED"; id?: string } = {}): Plan {
   const def = FAILURE_BY_KEY[key];
+  // Engineer-fixed failure types are always rejected and escalated after the investigation.
+  if (def.engineerFix) return { key, status: "REJECTED", failed: false, outcome: "SUCCESS", id: extra.id };
   const failed = extra.failed ?? ((status === "ESCALATED" && def.autoRemediable) || (status === "ESCALATION_REQUIRED" && def.autoRun));
   return { key, status, failed, outcome: extra.outcome ?? "SUCCESS", id: extra.id };
 }
@@ -59,7 +61,7 @@ const TODAY_PLAN: Record<string, Plan> = {
   "PS_US#2": plan("REPEATED_FAILURE", "ESCALATED"),
   "MM_US#4": plan("SCHEMA_MISMATCH", "RESOLVED"),
   "PS_US#3": plan("PERMISSION_FAILURE", "WAITING_APPROVAL", { outcome: "FAILED" }),
-  "MM_US#5": plan("RESOURCE_EXHAUSTION", "RESOLVED"),
+  "MM_US#5": plan("TRANSIENT_FAILURE", "RESOLVED"),
   "PS_US#4": plan("TIMEOUT_FAILURE", "WAITING_APPROVAL"),
   "MM_US#6": plan("DEPENDENCY_FAILURE", "ESCALATED"),
   "PS_US#6": plan("TIMEOUT_FAILURE", "RESOLVED"),
@@ -80,7 +82,7 @@ const PAST_FAILURES: Record<number, number> = { 1: 12, 2: 15, 3: 17, 4: 13, 5: 1
 
 /** Incidents from earlier days that are still open (keyed by days ago): 12 here + 12 open today = 24 active. */
 const CARRY_OVER: Record<number, Plan[]> = {
-  1: [plan("PERMISSION_FAILURE", "WAITING_APPROVAL"), plan("DATA_CORRUPTION", "WAITING_APPROVAL", { outcome: "FAILED" }), plan("REPEATED_FAILURE", "ESCALATED"), plan("RESOURCE_EXHAUSTION", "WAITING_APPROVAL")],
+  1: [plan("PERMISSION_FAILURE", "WAITING_APPROVAL"), plan("DATA_CORRUPTION", "WAITING_APPROVAL", { outcome: "FAILED" }), plan("REPEATED_FAILURE", "ESCALATED"), plan("SCHEMA_MISMATCH", "WAITING_APPROVAL")],
   2: [plan("REPEATED_FAILURE", "ESCALATED"), plan("SCHEMA_MISMATCH", "WAITING_APPROVAL"), plan("DQ_FAILURE", "WAITING_APPROVAL")],
   3: [plan("REPEATED_FAILURE", "ESCALATED")],
   4: [plan("CONFIGURATION_FAILURE", "WAITING_APPROVAL")],
@@ -205,6 +207,10 @@ function buildStory(incident: Incident, def: FailureTypeDef, pl: Plan, rand: () 
       mail(8);
       if (st === "RESOLVED") ownerFix(40);
     }
+  } else if (def.engineerFix) {
+    add(3, "Remediation rejected", "system", "Data-quality fixes are made by the data engineer — no automatic remediation");
+    add(4, "Escalated to the pipeline owner", "system", "Escalated to the data engineer to quarantine, correct and reload the records");
+    mail(5);
   } else {
     add(3, "Waiting for approval", "system", def.recommendationText);
     if (st === "REJECTED") {

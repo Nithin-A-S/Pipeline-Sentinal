@@ -33,12 +33,8 @@ const COLUMNS: Column[] = [
   { label: "Pipeline", render: (r) => <span className="font-medium text-text-primary">{r.pipeline}</span> },
   { label: "Responsible person", render: (r) => <span className="font-medium text-text-primary">{PIPELINE_BY_ID[r.pipelineId]?.owner.name ?? "—"}</span> },
   { label: "Job ID", render: (r) => mono(r.jobId) },
-  { label: "Run ID", render: (r) => mono(r.runId) },
-  { label: "Start time", render: (r) => <span className="text-text-secondary">{formatDateTime(r.startTime)}</span> },
-  { label: "End time", render: (r) => <span className="text-text-secondary">{formatDateTime(r.endTime)}</span> },
   { label: "Duration", render: (r) => <span className="text-text-secondary">{formatDuration(r.durationMinutes)}</span> },
   { label: "Execution status", render: (r) => <StatusBadge style={EXECUTION_STATUS_STYLES[r.executionStatus]} /> },
-  { label: "Detected at", render: (r) => <span className="text-text-secondary">{formatDateTime(r.detectedAt)}</span> },
   {
     label: "Incident ID",
     render: (r, i) =>
@@ -50,7 +46,6 @@ const COLUMNS: Column[] = [
         dash
       ),
   },
-  { label: "Incident status", render: (_, i) => (i ? <StatusBadge style={INCIDENT_STATUS_STYLES[i.status]} pulse={i.status === "REMEDIATING"} /> : dash) },
   {
     label: "Recommended action",
     render: (_, i) => {
@@ -71,6 +66,10 @@ const COLUMNS: Column[] = [
       );
     },
   },
+  { label: "Incident status", render: (_, i) => (i ? <StatusBadge style={INCIDENT_STATUS_STYLES[i.status]} pulse={i.status === "REMEDIATING"} /> : dash) },
+  { label: "Start time", render: (r) => <span className="text-text-secondary">{formatDateTime(r.startTime)}</span> },
+  { label: "End time", render: (r) => <span className="text-text-secondary">{formatDateTime(r.endTime)}</span> },
+  { label: "Detected at", render: (r) => <span className="text-text-secondary">{formatDateTime(r.detectedAt)}</span> },
   { label: "Approval status", render: (_, i) => (i ? mono(approvalStatus(i)) : dash) },
   { label: "Remediation status", render: (_, i) => (i ? mono(remediationStatus(i)) : dash) },
   { label: "DQ status", render: (r) => <StatusBadge style={DQ_STYLES[r.dqStatus]} /> },
@@ -122,7 +121,7 @@ export default function PipelinesPage() {
     return dayRuns
       .filter((r) => (status === "ALL" ? true : status === "SUCCESS" ? r.executionStatus === "SUCCESS" : r.executionStatus !== "SUCCESS"))
       .filter((r) => (failure === "ALL" ? true : incidentById.get(r.incidentId ?? "")?.failureKey === failure))
-      .filter((r) => !q || r.pipeline.toLowerCase().includes(q) || r.runId.includes(q) || (r.incidentId ?? "").toLowerCase().includes(q))
+      .filter((r) => !q || r.pipeline.toLowerCase().includes(q) || (r.incidentId ?? "").toLowerCase().includes(q))
       .sort((a, b) => (a.startTime < b.startTime ? 1 : -1));
   }, [dayRuns, status, failure, query, incidentById]);
 
@@ -213,7 +212,7 @@ export default function PipelinesPage() {
                   setQuery(e.target.value);
                   resetScroll();
                 }}
-                placeholder="Search pipeline, run or incident"
+                placeholder="Search pipeline or incident"
                 aria-label="Search runs"
                 className="w-52 bg-transparent text-xs text-text-primary outline-none placeholder:text-text-tertiary"
               />

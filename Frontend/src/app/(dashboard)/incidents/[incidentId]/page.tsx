@@ -182,7 +182,9 @@ function flowFor(i: Incident, def: FailureTypeDef): { nodes: FlowNode[]; hint: s
     hint = "Approval required — approve to start the remediation, or reject to close this incident.";
   } else if (st === "REJECTED") {
     nodes.push(n("Rejected · Escalated", "failed"));
-    hint = "The remediation was rejected, so the incident was escalated and the pipeline owner was emailed.";
+    hint = def.engineerFix
+      ? "Data-quality fixes are made by the data engineer, so the incident was rejected and escalated by email."
+      : "The remediation was rejected, so the incident was escalated and the pipeline owner was emailed.";
   } else {
     nodes.push(n("Approved", "done"));
     remediation();
@@ -317,7 +319,9 @@ export default function IncidentDetailPage() {
                     : !def.autoRemediable
                       ? "Remediated by the pipeline owner"
                       : `Remediated — ${def.remediationLabel.toLowerCase()} completed`
-                : "Rejected — escalated to the pipeline owner by email";
+                : def.engineerFix
+                  ? "Rejected — escalated to the data engineer by email"
+                  : "Rejected — escalated to the pipeline owner by email";
 
   const slaGap = incident.durationMinutes - SLA_BASELINE_MINUTES;
   const scaleMax = Math.max(incident.durationMinutes, SLA_BASELINE_MINUTES) * 1.2;
@@ -330,7 +334,9 @@ export default function IncidentDetailPage() {
     ESCALATION_REQUIRED: failed ? "The remediation failed. Send the escalation mail to the pipeline owner." : "AI cannot remediate this failure. Send the escalation mail to the pipeline owner.",
     ESCALATED: "Failed. The pipeline owner has been emailed and is working on the fix.",
     RESOLVED: def.autoRun && !failed ? "Remediated automatically. No approval was needed." : failed ? "Remediated after the pipeline owner fixed the issue." : "This incident is remediated.",
-    REJECTED: "The remediation was rejected, so no automatic fix was applied. The incident was escalated and the pipeline owner has been emailed.",
+    REJECTED: def.engineerFix
+      ? "Rejected and escalated. Data-quality fixes are made by the data engineer, who has been emailed to quarantine, correct and reload the records."
+      : "The remediation was rejected, so no automatic fix was applied. The incident was escalated and the pipeline owner has been emailed.",
   };
 
   return (

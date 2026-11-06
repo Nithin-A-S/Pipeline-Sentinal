@@ -2,7 +2,7 @@ export type FailureKey =
   | "CONFIGURATION_FAILURE"
   | "DEPENDENCY_FAILURE"
   | "TIMEOUT_FAILURE"
-  | "RESOURCE_EXHAUSTION"
+  | "TRANSIENT_FAILURE"
   | "PERMISSION_FAILURE"
   | "SCHEMA_MISMATCH"
   | "DQ_FAILURE"
@@ -33,6 +33,11 @@ export interface FailureTypeDef {
   autoRemediable: boolean;
   /** true = the guardrail lets Sentinel run the remediation by itself (no approval, no button). */
   autoRun: boolean;
+  /**
+   * true = after the investigation the remediation is rejected and the incident is
+   * escalated straight to the data engineer, who makes the fix.
+   */
+  engineerFix?: boolean;
   baseSeverity: BaseSeverity;
   errorCode: string;
   errorMessage: string;
@@ -159,34 +164,42 @@ export const FAILURE_TYPES: FailureTypeDef[] = [
     },
   },
   {
-    key: "RESOURCE_EXHAUSTION",
+    key: "TRANSIENT_FAILURE",
     index: 4,
-    label: "Resource Exhaustion",
-    recommendation: "RETRY_WITH_MORE_RESOURCES",
-    recommendationText: "Increase the compute size, then rerun",
-    remediationLabel: "Increase compute",
+    label: "Transient Failure",
+    recommendation: "CONTROLLED_RETRY",
+    recommendationText: "Retry the pipeline with a controlled retry",
+    remediationLabel: "Controlled retry",
     autoRemediable: true,
-    autoRun: false,
-    baseSeverity: "HIGH",
-    errorCode: "OUT_OF_MEMORY",
-    errorMessage: "Executor lost due to memory exhaustion (java.lang.OutOfMemoryError: Java heap space)",
+    autoRun: true,
+    baseSeverity: "MEDIUM",
+    errorCode: "SERVICE_UNAVAILABLE",
+    errorMessage: "Source endpoint returned HTTP 503 – Service Unavailable during data retrieval",
     executionStatus: "FAILED",
-    failMinutes: 22,
-    rootCause: "Data volume grew past what the current 2-worker cluster can hold in memory during the join stage.",
+    failMinutes: 4,
+    rootCause: "A temporary source-service availability issue interrupted data retrieval, causing the pipeline execution to fail. The failure is classified as a transient connectivity failure.",
+    investigationSummary: "The pipeline encountered a temporary service unavailability while accessing the source endpoint. The failure appears transient and potentially recoverable through a controlled retry.",
     investigation: [
-      "Executors were lost 3 times with OutOfMemoryError during the shuffle join.",
-      "Input volume is 38% higher than the 30-day average.",
-      "Peak executor memory reached 96% before failure.",
+      "The source endpoint returned 503 – Service Unavailable during pipeline execution.",
+      "The connection failure occurred during data retrieval.",
+      "No evidence of invalid configuration or authentication failure was identified.",
+      "The failure pattern is consistent with a temporary service interruption.",
+      "A controlled retry is recommended, subject to retry limits and idempotency checks.",
     ],
-    analysisSteps: ["Read executor loss events", "Inspect memory and shuffle metrics", "Compare input volume with the 30-day average", "Size a cluster that fits the new volume"],
-    remediationSteps: ["Validate guardrail: compute increase is reversible", "Resize the job cluster to the recommended size", "Rerun {pipeline} on the larger cluster", "Restore the original size after a successful run"],
-    validation: ["Rerun completed with result_state SUCCESS", "Peak executor memory below 70%"],
-    change: { label: "Compute", current: "Standard_D4as_v5 / 2 workers", recommended: "Standard_D8as_v5 / 4 workers" },
-    solution: ["Approve the larger cluster — the rerun uses 4 × Standard_D8as_v5 workers.", "Review whether the cluster size should be raised permanently."],
+    analysisSteps: [
+      "Analysed the connection error and execution logs.",
+      "Identified the failed source-system request and HTTP 503 response.",
+      "Checked whether the failure was transient or persistent.",
+      "Reviewed previous retry attempts and execution history.",
+      "Verified that no configuration or authentication issue was detected.",
+    ],
+    remediationSteps: ["Guardrail check: transient failures may be retried automatically within the retry limit", "Confirm the run is idempotent and safe to retry", "Retry {pipeline} with a controlled retry", "Validate the run output"],
+    validation: ["Retry completed with result_state SUCCESS", "Source endpoint responded without HTTP 503 errors"],
+    solution: ["No action needed — Sentinel retries the pipeline automatically within the retry limit.", "If the source endpoint keeps returning HTTP 503, contact the source-system team."],
     regression: {
-      scenario: "Executor lost to out-of-memory on a join-heavy load",
-      expectedBehavior: "Compute is increased and the rerun succeeds",
-      expectedWorkflow: `${WF} → human approval → resize compute → rerun → validation`,
+      scenario: "Source endpoint returns HTTP 503 – Service Unavailable during data retrieval",
+      expectedBehavior: "Failure is classified as transient and retried automatically — no approval needed",
+      expectedWorkflow: `${WF} → automatic controlled retry → validation → remediated`,
     },
   },
   {
@@ -260,6 +273,7 @@ export const FAILURE_TYPES: FailureTypeDef[] = [
     remediationLabel: "Quarantine / correct & reload",
     autoRemediable: true,
     autoRun: false,
+    engineerFix: true,
     baseSeverity: "HIGH",
     errorCode: "PRIMARY_KEY_UNIQUENESS",
     errorMessage: "Data quality gate failed: Primary Key Uniqueness — 312 duplicate material IDs (MATNR) and 87 rows missing mandatory fields in sap_material_master",
@@ -282,11 +296,11 @@ export const FAILURE_TYPES: FailureTypeDef[] = [
     ],
     remediationSteps: ["Validate guardrail: quarantine is reversible", "Quarantine the 399 affected records (312 duplicates + 87 incomplete rows)", "Correct the records — de-duplicate on MATNR and fill mandatory fields from the source — and reload them", "Validate: re-run the Primary Key Uniqueness and mandatory-field checks"],
     validation: ["Primary Key Uniqueness check passed — 0 duplicate material IDs", "Mandatory-field check passed — 0 rows with missing MTART/MEINS"],
-    solution: ["Approve quarantine — affected records are isolated, corrected and reloaded.", "Ask the SAP extract team why duplicate material IDs were produced in the 02:10 UTC batch."],
+    solution: ["Quarantine the affected records, correct them (de-duplicate on MATNR, fill MTART/MEINS) and reload them, then re-run the data-quality checks.", "Ask the SAP extract team why duplicate material IDs were produced in the 02:10 UTC batch."],
     regression: {
       scenario: "Duplicate material IDs or missing mandatory fields in a source batch",
       expectedBehavior: "Affected records are quarantined, corrected and reloaded, and the data passes validation",
-      expectedWorkflow: `Duplicate material IDs / missing mandatory fields → quarantine affected records → correct/reload → validate`,
+      expectedWorkflow: `Incident created → AI investigation → rejected and escalated to the data engineer → quarantine → correct/reload → validate`,
     },
   },
   {
