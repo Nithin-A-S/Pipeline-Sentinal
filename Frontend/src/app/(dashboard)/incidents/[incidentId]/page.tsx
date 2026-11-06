@@ -139,46 +139,57 @@ interface FlowNode {
 }
 
 /**
- * The remediation flow for this incident. Steps still to come (or in progress) are
- * grey, completed steps are green, and a failed remediation is red.
+ * The remediation flow for this incident, always in the same order:
+ *   Incident Created → Investigation Completed → Wait for Approval (only when the guardrail needs one) → Remediate → Success/Failed
+ * Steps still to come (or in progress) are grey, completed steps are green, and failures are red.
  */
 function flowFor(i: Incident, def: FailureTypeDef): { nodes: FlowNode[]; hint: string | null } {
   const st = i.status;
   const n = (label: string, state: NodeState): FlowNode => ({ label, state });
-  const nodes: FlowNode[] = [n("Incident created", "done")];
+  const nodes: FlowNode[] = [n("Incident Created", "done"), n("Investigation Completed", "done")];
   let hint: string | null = null;
   const failedHint = "If the remediation fails, the incident is marked Failed and you send the escalation mail to the pipeline owner.";
+  const outcomePending = () => nodes.push(n("Success/Failed", "pending"));
 
-  const remediation = () => {
+  /** Remediation step plus its outcome, for incidents where a remediation runs. */
+  const remediationAndOutcome = () => {
     if (st === "REMEDIATING") {
-      nodes.push(n("Remediation", "current"));
+      nodes.push(n("Remediate", "current"));
+      outcomePending();
       hint = failedHint;
     } else if (i.remediationFailed) {
-      nodes.push(n("Failed", "failed"));
+      nodes.push(n("Remediate", "done"), n("Failed", "failed"));
       if (st === "ESCALATION_REQUIRED") hint = "Send the escalation mail to the pipeline owner.";
-      if (st === "RESOLVED") nodes.push(n("Remediated by owner", "done"));
+      if (st === "RESOLVED") nodes.push(n("Fixed by owner", "done"));
     } else if (st === "RESOLVED") {
-      nodes.push(n("Remediated", "done"));
+      nodes.push(n("Remediate", "done"), n("Success", "done"));
     } else {
-      nodes.push(n("Remediation", "pending"));
+      nodes.push(n("Remediate", "pending"));
+      outcomePending();
       hint = failedHint;
     }
   };
 
   if (def.autoRun) {
-    remediation();
+    // No approval step: the guardrail lets Sentinel remediate on its own.
+    remediationAndOutcome();
   } else if (!def.autoRemediable) {
-    nodes.push(n("Failed", "failed"));
-    if (st === "ESCALATION_REQUIRED") hint = "AI cannot remediate this failure. Send the escalation mail to the pipeline owner.";
-    nodes.push(n(st === "RESOLVED" ? "Remediated by owner" : "Remediation", st === "RESOLVED" ? "done" : "pending"));
+    // AI cannot remediate: no approval or automatic remediation, the pipeline owner fixes it.
+    if (st === "RESOLVED") {
+      nodes.push(n("Remediate by owner", "done"), n("Success", "done"));
+    } else {
+      nodes.push(n("Remediate", "pending"), n("Failed", "failed"));
+      if (st === "ESCALATION_REQUIRED") hint = "AI cannot remediate this failure. Send the escalation mail to the pipeline owner.";
+    }
   } else if (st === "WAITING_APPROVAL") {
-    nodes.push(n("Waiting for approval", "current"), n("Remediation", "pending"));
+    nodes.push(n("Wait for Approval", "current"), n("Remediate", "pending"));
+    outcomePending();
     hint = "Approval required — approve to start the remediation, or reject to close this incident.";
   } else if (st === "REJECTED") {
     nodes.push(n("Rejected", "failed"));
   } else {
     nodes.push(n("Approved", "done"));
-    remediation();
+    remediationAndOutcome();
   }
   return { nodes, hint };
 }

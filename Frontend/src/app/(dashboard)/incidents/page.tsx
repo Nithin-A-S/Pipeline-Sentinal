@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { Mail, Search } from "lucide-react";
 import { PageHeader } from "@/components/common/PageHeader";
 import { Segmented } from "@/components/common/Segmented";
+import { SeverityLabel } from "@/components/common/SeverityLabel";
 import { StatusBadge } from "@/components/common/StatusBadge";
 import { EmptyState } from "@/components/common/EmptyState";
 import { Card, CardHeader } from "@/components/common/Card";
@@ -12,7 +13,7 @@ import { WORKSPACE_BY_ID, inWorkspace } from "@/ops/catalog";
 import { isActive, isFailed } from "@/ops/derive";
 import { FAILURE_BY_KEY, FAILURE_TYPES, type FailureKey } from "@/ops/failureTypes";
 import { useOps } from "@/ops/store";
-import { INCIDENT_STATUS_STYLES, SEVERITY_STYLES, SLA_STYLES } from "@/ops/styles";
+import { INCIDENT_STATUS_STYLES, SLA_STYLES } from "@/ops/styles";
 import type { IncidentStatus } from "@/ops/types";
 import { formatDateTime } from "@/lib/utils";
 
@@ -138,11 +139,11 @@ export default function IncidentsPage() {
                     <th className="px-4 py-2.5">Incident</th>
                     <th className="px-4 py-2.5">Pipeline</th>
                     <th className="px-4 py-2.5">Failure Type</th>
-                    <th className="px-4 py-2.5">Severity</th>
-                    <th className="px-4 py-2.5">SLA</th>
                     <th className="px-4 py-2.5">Status</th>
                     <th className="px-4 py-2.5">Recommended Action</th>
                     <th className="px-4 py-2.5">Detected</th>
+                    <th className="px-4 py-2.5">Severity</th>
+                    <th className="px-4 py-2.5">SLA</th>
                     <th className="px-4 py-2.5">Email</th>
                   </tr>
                 </thead>
@@ -162,16 +163,14 @@ export default function IncidentsPage() {
                         <td className="px-4 py-3 text-text-primary">{i.pipeline}</td>
                         <td className="whitespace-nowrap px-4 py-3 font-medium text-text-primary">{def.label}</td>
                         <td className="px-4 py-3">
-                          <StatusBadge style={SEVERITY_STYLES[i.severity]} />
-                        </td>
-                        <td className="px-4 py-3">
-                          <StatusBadge style={SLA_STYLES[i.slaStatus]} />
-                        </td>
-                        <td className="px-4 py-3">
                           <StatusBadge style={INCIDENT_STATUS_STYLES[i.status]} pulse={i.status === "REMEDIATING"} />
                         </td>
                         <td className="px-4 py-3 text-text-secondary">{def.recommendationText}</td>
                         <td className="whitespace-nowrap px-4 py-3 text-text-secondary">{formatDateTime(i.detectedAt)}</td>
+                        <td className="px-4 py-3">
+                          <SeverityLabel severity={i.severity} />
+                        </td>
+                        <td className="whitespace-nowrap px-4 py-3 text-text-secondary">{SLA_STYLES[i.slaStatus].label}</td>
                         <td className="px-4 py-3">{i.emailSent ? <Mail className="size-3.5 text-success-600" aria-label="Email sent" /> : <span className="text-text-tertiary">—</span>}</td>
                       </tr>
                     );
