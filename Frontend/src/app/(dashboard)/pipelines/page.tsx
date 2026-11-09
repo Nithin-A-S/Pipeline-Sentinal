@@ -21,6 +21,13 @@ type StatusFilter = "ALL" | "SUCCESS" | "FAILED";
 
 const ROW_HEIGHT = 56;
 
+/** Runs pinned to the top of the table for the demo: pipeline + failure type. */
+const SHOWCASE: [string, FailureKey][] = [
+  ["PS_US", "CONFIGURATION_FAILURE"],
+  ["PS_DE", "DQ_FAILURE"],
+  ["MM_US", "TRANSIENT_FAILURE"],
+];
+
 interface Column {
   label: string;
   render: (r: PipelineRun, i: Incident | undefined) => ReactNode;
@@ -125,13 +132,15 @@ export default function PipelinesPage() {
       .sort((a, b) => (a.startTime < b.startTime ? 1 : -1));
   }, [dayRuns, status, failure, query, incidentById]);
 
-  // Demo ordering: lead with up to 2 resolved incidents, then up to 2 waiting for approval, then everything else by time.
+  // Demo ordering: lead with the showcase failures, then a few successful runs, then everything else by time.
   const ordered = useMemo(() => {
-    const statusOf = (r: PipelineRun) => incidentById.get(r.incidentId ?? "")?.status;
-    const resolved = rows.filter((r) => statusOf(r) === "RESOLVED").slice(0, 2);
-    const waiting = rows.filter((r) => statusOf(r) === "WAITING_APPROVAL").slice(0, 2);
-    const lead = new Set([...resolved, ...waiting]);
-    return [...resolved, ...waiting, ...rows.filter((r) => !lead.has(r))];
+    const keyOf = (r: PipelineRun) => incidentById.get(r.incidentId ?? "")?.failureKey;
+    const showcase = SHOWCASE.map(([pipelineId, key]) => rows.find((r) => r.pipelineId === pipelineId && keyOf(r) === key)).filter(
+      (r): r is PipelineRun => !!r,
+    );
+    const successes = rows.filter((r) => r.executionStatus === "SUCCESS").slice(0, 3);
+    const lead = new Set([...showcase, ...successes]);
+    return [...showcase, ...successes, ...rows.filter((r) => !lead.has(r))];
   }, [rows, incidentById]);
 
   const stats = useMemo(() => {

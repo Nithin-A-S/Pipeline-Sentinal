@@ -19,8 +19,124 @@ function utc(iso: string): string {
   return `${d.getUTCFullYear()}-${p(d.getUTCMonth() + 1)}-${p(d.getUTCDate())} ${p(d.getUTCHours())}:${p(d.getUTCMinutes())} UTC`;
 }
 
+const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+
+/** e.g. "09 Nov 2026, 05:33 UTC" */
+function longUtc(iso: string): string {
+  const d = new Date(iso);
+  const p = (n: number) => String(n).padStart(2, "0");
+  return `${p(d.getUTCDate())} ${MONTHS[d.getUTCMonth()]} ${d.getUTCFullYear()}, ${p(d.getUTCHours())}:${p(d.getUTCMinutes())} UTC`;
+}
+
+const minutes = (n: number) => `${n} minute${n === 1 ? "" : "s"}`;
+
+interface CustomEmail {
+  subject: string;
+  reason: string;
+  body: string[];
+  resolution: string[];
+}
+
+/** Hand-written emails for the demo incidents, keyed by incident ID. */
+const CUSTOM_EMAILS: Record<string, (i: Incident, first: string) => CustomEmail> = {
+  // Procurement & Sales Processing US — Configuration Failure (approval required).
+  "INC-960BD487": (i, first) => {
+    const actions = [
+      "Approve the proposed configuration fix: Update source_path to /mnt/raw/sap/current and rerun the pipeline.",
+      "Prevent recurrence: Review and update the deployment template to ensure the retired path is not reintroduced in future deployments.",
+    ];
+    return {
+      subject: `[Sentinel] Approval required: Configuration Failure — ${i.pipeline} (${i.id})`,
+      reason: "Job parameter source_path references a non-existent location: /mnt/raw/sap/legacy.",
+      resolution: actions,
+      body: [
+        `Hi ${first},`,
+        "",
+        `Sentinel detected a failure in the pipeline ${i.pipeline} (${COUNTRY_LABEL[i.country]}) at ${longUtc(i.detectedAt)} and created incident ${i.id}.`,
+        "",
+        "The AI investigation has identified a likely configuration issue and recommends a corrective action. Your approval is required before remediation can proceed.",
+        "",
+        "WHAT HAPPENED",
+        "Failure type: Configuration Failure",
+        "Error: Job parameter source_path references a non-existent location: /mnt/raw/sap/legacy.",
+        "Investigation finding: The configured path appears to be outdated following the SAP storage migration.",
+        "Recommended replacement: /mnt/raw/sap/current",
+        "Execution status: Failed",
+        `Runtime assessment: ${minutes(i.durationMinutes)} against a ${SLA_BASELINE_MINUTES}-minute baseline (within the runtime threshold).`,
+        "",
+        "RECOMMENDED ACTION",
+        ...actions,
+        "",
+        "REQUIRED ACTION: Review and approve the proposed remediation in Sentinel.",
+        "",
+        `Incident: ${i.id}`,
+        `Pipeline: ${i.pipeline}`,
+      ],
+    };
+  },
+  // Procurement & Sales Processing DE — Data Quality Failure (escalated for engineer intervention).
+  "INC-6036A738": (i, first) => {
+    const actions = [
+      "Isolate affected records: Quarantine the impacted records to prevent invalid data from progressing downstream.",
+      "Resolve duplicate material IDs: Investigate duplicates and apply approved de-duplication or source correction rules.",
+      "Correct missing attributes: Validate and populate MTART and MEINS using authoritative SAP source data.",
+      "Reload and validate: Reload the corrected records and rerun data quality checks before resuming downstream processing.",
+      "Prevent recurrence: Engage the SAP extract team to investigate the source batch and address the underlying data issue.",
+    ];
+    return {
+      subject: `[Sentinel] Escalation: Data Quality Failure — ${i.pipeline} (${i.id})`,
+      reason: "Primary Key Uniqueness and Mandatory Field Completeness checks failed on sap_material_master.",
+      resolution: actions,
+      body: [
+        `Hi ${first},`,
+        "",
+        `Sentinel detected a data quality failure in the pipeline ${i.pipeline} (${COUNTRY_LABEL[i.country]}) at ${longUtc(i.detectedAt)} and created incident ${i.id}.`,
+        "",
+        "The AI investigation identified duplicate material identifiers and missing mandatory attributes in the SAP Material Master extract. As these issues require business-rule validation and source-data correction, automated remediation is not permitted. The incident has been escalated for engineer intervention.",
+        "",
+        "WHAT HAPPENED",
+        "Failure type: Data Quality Failure",
+        "Failed validation: Primary Key Uniqueness and Mandatory Field Completeness",
+        "Affected data: sap_material_master",
+        "Source batch: 02:10 UTC SAP extract",
+        "",
+        "AI INVESTIGATION FINDINGS",
+        "312 MATNR values appear more than once, violating the primary-key uniqueness rule.",
+        "87 rows have missing mandatory attributes: MTART (Material Type) and MEINS (Base Unit of Measure).",
+        "All identified affected rows originate from the same source batch.",
+        "The remaining 9,661 rows passed the checks.",
+        "",
+        "RECOMMENDED ACTION",
+        ...actions,
+        "",
+        "GOVERNANCE STATUS: Engineer intervention required. Sentinel has completed the investigation and routed the incident; no data changes have been performed automatically.",
+        "",
+        `Runtime assessment: ${minutes(i.durationMinutes)} against a ${SLA_BASELINE_MINUTES}-minute baseline. This is within the runtime threshold; downstream data availability should be assessed separately.`,
+        "",
+        `Incident: ${i.id}`,
+        `Pipeline: ${i.pipeline}`,
+      ],
+    };
+  },
+};
+
+export const hasCustomEmail = (incidentId: string) => incidentId in CUSTOM_EMAILS;
+
 /** The email is derived entirely from the incident: reason, evidence, and the solution for its failure type. */
 export function buildEmail(incident: Incident): EmailDraft {
+  const custom = CUSTOM_EMAILS[incident.id];
+  if (custom) {
+    const c = custom(incident, incident.owner.name.split(" ")[0]);
+    return {
+      to: incident.owner.email,
+      toName: incident.owner.name,
+      cc: ["dataops-oncall@sentinel.ai"],
+      subject: c.subject,
+      reason: c.reason,
+      body: [...c.body, "", "Regards,", "Sentinel", "AI-powered pipeline operations"].join("\n"),
+      resolution: c.resolution,
+    };
+  }
   const def = FAILURE_BY_KEY[incident.failureKey];
   const ctx = { pipeline: incident.pipeline, country: incident.country };
   const first = incident.owner.name.split(" ")[0];

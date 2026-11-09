@@ -1,6 +1,6 @@
 import { seededInt, seededRandom, seededShuffle } from "@/lib/seededRandom";
 import { PIPELINES, PIPELINE_BY_ID, SLA_BASELINE_MINUTES, buildDays } from "./catalog";
-import { buildEmail } from "./email";
+import { buildEmail, hasCustomEmail } from "./email";
 import { FAILURE_BY_KEY, FAILURE_TYPES, type FailureKey, type FailureTypeDef } from "./failureTypes";
 import type { AppNotification, AuditEvent, Incident, IncidentStatus, PipelineRun } from "./types";
 
@@ -66,9 +66,11 @@ const TODAY_PLAN: Record<string, Plan> = {
   "MM_US#6": plan("DEPENDENCY_FAILURE", "ESCALATED"),
   "PS_US#6": plan("TIMEOUT_FAILURE", "RESOLVED"),
   "MM_US#7": plan("DATA_CORRUPTION", "RESOLVED"),
-  "PS_US#7": plan("CONFIGURATION_FAILURE", "RESOLVED"),
+  // Configuration failure demo: approval-request email (see CUSTOM_EMAILS in email.ts).
+  "PS_US#7": plan("CONFIGURATION_FAILURE", "WAITING_APPROVAL", { id: "INC-960BD487" }),
   "MM_CA#0": plan("CONNECTIVITY_FAILURE", "ESCALATION_REQUIRED"),
-  "PS_DE#1": plan("DQ_FAILURE", "WAITING_APPROVAL", { outcome: "FAILED" }),
+  // Data quality demo: escalation email for engineer intervention (see CUSTOM_EMAILS in email.ts).
+  "PS_DE#1": plan("DQ_FAILURE", "WAITING_APPROVAL", { id: "INC-6036A738" }),
   "GOLD_GB#0": plan("SCHEMA_MISMATCH", "WAITING_APPROVAL"),
   "GOLD_SG#0": plan("TIMEOUT_FAILURE", "RESOLVED"),
   // Dependency failure demo: upstream job incomplete → verify dependency → wait → rerun downstream task.
@@ -213,6 +215,10 @@ function buildStory(incident: Incident, def: FailureTypeDef, pl: Plan, rand: () 
     mail(5);
   } else {
     add(3, "Waiting for approval", "system", def.recommendationText);
+    if (st === "WAITING_APPROVAL" && hasCustomEmail(incident.id)) {
+      mailKind = "Email";
+      mail(4);
+    }
     if (st === "REJECTED") {
       add(approveAt, "Remediation rejected", "human", `By ${owner.name}`);
       add(approveAt + 1, "Escalated to the pipeline owner", "system", "Automatic escalation after the remediation was rejected");
