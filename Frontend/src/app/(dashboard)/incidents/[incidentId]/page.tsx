@@ -75,6 +75,7 @@ function Step({
   summary,
   defaultOpen,
   last,
+  disabled,
   children,
 }: {
   n: number;
@@ -84,9 +85,12 @@ function Step({
   summary: string;
   defaultOpen: boolean;
   last?: boolean;
+  /** true = the step cannot be opened and is shown dimmed. */
+  disabled?: boolean;
   children: ReactNode;
 }) {
-  const [open, setOpen] = useState(defaultOpen);
+  const [opened, setOpen] = useState(defaultOpen);
+  const open = opened && !disabled;
   return (
     <li className="relative flex gap-4">
       {!last && <span className="absolute left-3 top-8 h-[calc(100%-16px)] w-px bg-border" aria-hidden />}
@@ -94,7 +98,15 @@ function Step({
         <StepIcon state={state} n={n} />
       </div>
       <div className="min-w-0 flex-1 pb-5">
-        <button onClick={() => setOpen((v) => !v)} aria-expanded={open} className="flex w-full items-start justify-between gap-3 rounded-lg px-1 py-1 text-left transition-colors hover:bg-surface-subtle">
+        <button
+          onClick={() => setOpen((v) => !v)}
+          disabled={disabled}
+          aria-expanded={open}
+          className={cn(
+            "flex w-full items-start justify-between gap-3 rounded-lg px-1 py-1 text-left transition-colors",
+            disabled ? "cursor-default opacity-60" : "hover:bg-surface-subtle",
+          )}
+        >
           <div className="min-w-0">
             <p className="flex items-center gap-2 text-sm font-semibold text-text-primary">
               <Icon className="size-3.5 text-text-tertiary" />
@@ -102,7 +114,7 @@ function Step({
             </p>
             <p className="mt-0.5 text-xs text-text-tertiary">{summary}</p>
           </div>
-          <ChevronDown className={cn("mt-1 size-4 shrink-0 text-text-tertiary transition-transform", open && "rotate-180")} />
+          {!disabled && <ChevronDown className={cn("mt-1 size-4 shrink-0 text-text-tertiary transition-transform", open && "rotate-180")} />}
         </button>
         {open && <div className="mt-2 rounded-lg border border-border bg-surface-subtle p-4 text-sm">{children}</div>}
       </div>
@@ -585,7 +597,7 @@ export default function IncidentDetailPage() {
               title="Notification and escalation"
               state={emails.length > 0 ? "done" : mustEscalate ? "active" : "pending"}
               summary={emails.length > 0 ? `${emails.length} email${emails.length > 1 ? "s" : ""} sent to ${incident.owner.name}` : mustEscalate ? "Failed — send the escalation mail to the pipeline owner" : "No email has been sent yet"}
-              defaultOpen={emails.length > 0 || mustEscalate}
+              defaultOpen={false}
             >
               {emails.length === 0 ? (
                 <div className="flex flex-wrap items-center justify-between gap-3">
@@ -621,26 +633,61 @@ export default function IncidentDetailPage() {
               icon={FlaskConical}
               title="Regression test suite"
               state={closed ? "done" : "pending"}
-              summary={closed ? `REG-${incident.id} was added to the CI/CD test suite` : "Added to the CI/CD test suite when the incident is resolved"}
-              defaultOpen={closed}
+              summary={closed ? `REG-${incident.id} was added to the CI/CD test suite` : "No test case — only remediated incidents are added to the CI/CD test suite"}
+              defaultOpen={false}
+              disabled={!closed}
               last
             >
-              <div className="divide-y divide-border rounded-lg border border-border bg-surface">
-                {[
-                  ["Test ID", `REG-${incident.id}`],
-                  ["Scenario", def.regression.scenario],
-                  ["Expected behavior", def.regression.expectedBehavior],
-                  ["Expected classification", `${def.label} (${def.key})`],
-                  ["Expected workflow", def.regression.expectedWorkflow],
-                  ["Expected remediation", `${def.recommendationText} (${def.recommendation})`],
-                  ["Expected final state", def.autoRun ? "Remediated automatically, with validation passed" : def.autoRemediable ? "Remediated, with validation passed" : "Failed, then remediated by the pipeline owner"],
-                  ["Current state", closed ? `Resolved on ${formatDateTime(incident.resolvedAt)} UTC` : INCIDENT_STATUS_STYLES[status].label],
-                ].map(([label, value]) => (
-                  <div key={label} className="grid gap-1 px-3.5 py-2.5 sm:grid-cols-[11rem_1fr]">
-                    <p className="text-[11px] font-medium text-text-tertiary">{label}</p>
-                    <p className="text-sm text-text-primary">{value}</p>
-                  </div>
-                ))}
+              <div className="space-y-3">
+                <div className="divide-y divide-border rounded-lg border border-border bg-surface">
+                  {(
+                    [
+                      ["Test ID", <span key="id" className="font-mono">{`REG-${incident.id}-CI`}</span>],
+                      ["Scenario", def.regression.scenario],
+                      ["Source incident", `REG-${incident.id} (${def.key})`],
+                      ["Pipeline stage", def.regression.stage],
+                      ["Expected behavior", def.regression.ciBehavior],
+                      [
+                        "Pass condition",
+                        <ul key="pass" className="space-y-1">
+                          {def.regression.passConditions.map((c) => (
+                            <li key={c} className="flex gap-2">
+                              <CheckCircle2 className="mt-0.5 size-4 shrink-0 text-success-600" />
+                              <span>{c}</span>
+                            </li>
+                          ))}
+                        </ul>,
+                      ],
+                      ["Status", "Added to the CI/CD pipeline"],
+                    ] as [string, ReactNode][]
+                  ).map(([label, value]) => (
+                    <div key={label} className="grid gap-1 px-3.5 py-2.5 sm:grid-cols-[11rem_1fr]">
+                      <p className="text-[11px] font-medium text-text-tertiary">{label}</p>
+                      <div className="text-sm text-text-primary">{value}</div>
+                    </div>
+                  ))}
+                </div>
+
+                <div className="rounded-lg border border-border bg-surface px-3.5 py-3">
+                  <p className="text-[11px] font-medium text-text-tertiary">How it is added to the CI/CD pipeline</p>
+                  <ol className="mt-2 list-decimal space-y-1 pl-5 text-sm text-text-primary">
+                    {def.regression.implementation.map((step) => (
+                      <li key={step}>{step}</li>
+                    ))}
+                  </ol>
+                  <pre className="mt-3 overflow-x-auto rounded-md border border-border bg-surface-muted px-3 py-2.5 font-mono text-[11px] leading-relaxed text-text-secondary">
+                    {[
+                      "# .github/workflows/sentinel-regression.yml",
+                      "jobs:",
+                      "  regression:",
+                      "    runs-on: ubuntu-latest",
+                      "    steps:",
+                      "      - uses: actions/checkout@v4",
+                      `      - name: REG-${incident.id}-CI · ${def.regression.scenario}`,
+                      `        run: ${def.regression.ciCommand} --pipeline "${incident.pipeline}"`,
+                    ].join("\n")}
+                  </pre>
+                </div>
               </div>
             </Step>
           </ol>

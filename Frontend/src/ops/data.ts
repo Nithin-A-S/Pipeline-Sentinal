@@ -66,8 +66,8 @@ const TODAY_PLAN: Record<string, Plan> = {
   "MM_US#6": plan("DEPENDENCY_FAILURE", "ESCALATED"),
   "PS_US#6": plan("TIMEOUT_FAILURE", "RESOLVED"),
   "MM_US#7": plan("DATA_CORRUPTION", "RESOLVED"),
-  // Configuration failure demo: approval-request email (see CUSTOM_EMAILS in email.ts).
-  "PS_US#7": plan("CONFIGURATION_FAILURE", "WAITING_APPROVAL", { id: "INC-960BD487" }),
+  // Configuration failure demo: approval-request email, then approved and remediated (see CUSTOM_EMAILS in email.ts).
+  "PS_US#7": plan("CONFIGURATION_FAILURE", "RESOLVED", { id: "INC-960BD487" }),
   "MM_CA#0": plan("CONNECTIVITY_FAILURE", "ESCALATION_REQUIRED"),
   // Data quality demo: escalation email for engineer intervention (see CUSTOM_EMAILS in email.ts).
   "PS_DE#1": plan("DQ_FAILURE", "WAITING_APPROVAL", { id: "INC-6036A738" }),
@@ -215,7 +215,7 @@ function buildStory(incident: Incident, def: FailureTypeDef, pl: Plan, rand: () 
     mail(5);
   } else {
     add(3, "Waiting for approval", "system", def.recommendationText);
-    if (st === "WAITING_APPROVAL" && hasCustomEmail(incident.id)) {
+    if (st !== "REJECTED" && hasCustomEmail(incident.id)) {
       mailKind = "Email";
       mail(4);
     }

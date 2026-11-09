@@ -53,7 +53,19 @@ export interface FailureTypeDef {
   validation: string[];
   solution: string[];
   change?: PlannedChange;
-  regression: { scenario: string; expectedBehavior: string; expectedWorkflow: string };
+  regression: {
+    scenario: string;
+    expectedBehavior: string;
+    expectedWorkflow: string;
+    /** Where the regression test runs in the CI/CD pipeline. */
+    stage: string;
+    /** What the CI/CD test checks and how the build reacts. */
+    ciBehavior: string;
+    passConditions: string[];
+    /** How the test is implemented and wired into CI/CD. */
+    implementation: string[];
+    ciCommand: string;
+  };
 }
 
 const WF = "Incident created → AI investigation → failure type identified";
@@ -93,6 +105,20 @@ export const FAILURE_TYPES: FailureTypeDef[] = [
       scenario: "Job parameter points at a path that no longer exists",
       expectedBehavior: "Parameter is corrected and the pipeline recovers",
       expectedWorkflow: `${WF} → human approval → correct configuration → rerun → validation`,
+      stage: "Pre-deploy validation, which runs on every pull request and before every deployment",
+      ciBehavior: "The pipeline checks every job path parameter before deploying. If any path is retired, missing, inaccessible, or holds no source files, the build fails and names the parameter, the bad path, and the correct replacement.",
+      passConditions: [
+        "source_path does not use the retired location /mnt/raw/sap/legacy",
+        "The configured path exists and is readable",
+        "The path holds the expected source files",
+      ],
+      implementation: [
+        "Add a test that reads every *_path parameter from the job definition (Databricks Asset Bundle or job JSON).",
+        "Fail if a path is on the retired-locations list, such as /mnt/raw/sap/legacy, and name its replacement /mnt/raw/sap/current.",
+        "Check that each path exists, is readable, and holds at least one source file (dbutils.fs.ls).",
+        "Make the test a required check on every pull request and a gate in the deploy job.",
+      ],
+      ciCommand: "pytest tests/regression/test_job_paths.py",
     },
   },
   {
@@ -130,6 +156,20 @@ export const FAILURE_TYPES: FailureTypeDef[] = [
       scenario: "Pipeline starts before its upstream completes",
       expectedBehavior: "Dependency is verified, the pipeline waits and the downstream task is rerun automatically — no approval needed",
       expectedWorkflow: `Upstream job incomplete → verify dependency → wait → rerun downstream task → validation → resolved`,
+      stage: "Integration test, which runs on every pull request against the staging workspace",
+      ciBehavior: "The test starts the downstream job while its upstream job is still running. The pipeline must detect the incomplete upstream, wait, and run the downstream task only after the upstream completes, with no approval needed.",
+      passConditions: [
+        "The downstream task does not read before the upstream job completes",
+        "The dependency check is retried within the configured wait limit",
+        "The downstream run finishes with result_state SUCCESS and reads the refreshed silver table",
+      ],
+      implementation: [
+        "In staging, hold the upstream job run in a RUNNING state to simulate an incomplete upstream.",
+        "Trigger the downstream job and assert that the dependency check blocks it.",
+        "Release the upstream and assert that the downstream task reruns automatically and succeeds.",
+        "Make the test a required check on pull requests that change job dependencies or schedules.",
+      ],
+      ciCommand: "pytest tests/regression/test_upstream_dependency.py",
     },
   },
   {
@@ -161,6 +201,20 @@ export const FAILURE_TYPES: FailureTypeDef[] = [
       scenario: "Run terminated by the job timeout",
       expectedBehavior: "Timeout is extended for a rerun and the run completes",
       expectedWorkflow: `${WF} → human approval → extend timeout → rerun → validation`,
+      stage: "Performance test, which runs nightly and before every deployment",
+      ciBehavior: "The job runs against a production-sized sample. If the runtime comes too close to the configured timeout, the build fails and names the job, its timeout, and the measured runtime.",
+      passConditions: [
+        "The measured runtime stays below the configured timeout_seconds",
+        "timeout_seconds leaves at least 20% headroom over the p95 runtime",
+        "The run finishes with result_state SUCCESS",
+      ],
+      implementation: [
+        "Run the job in staging on a production-sized data sample.",
+        "Compare the measured runtime with the job's timeout_seconds and the p95 runtime from run history.",
+        "Fail the build if the headroom is under 20%, naming the job, timeout and runtime.",
+        "Schedule the test nightly and add it as a gate in the deploy job.",
+      ],
+      ciCommand: "pytest tests/regression/test_job_timeouts.py",
     },
   },
   {
@@ -200,6 +254,21 @@ export const FAILURE_TYPES: FailureTypeDef[] = [
       scenario: "Source endpoint returns HTTP 503 – Service Unavailable during data retrieval",
       expectedBehavior: "Failure is classified as transient and retried automatically — no approval needed",
       expectedWorkflow: `${WF} → automatic controlled retry → validation → remediated`,
+      stage: "Resilience test, which runs on every pull request against a mocked source endpoint",
+      ciBehavior: "A mocked source endpoint returns HTTP 503 for the first requests. The pipeline must classify the failure as transient, retry within the retry limit, and complete without manual action.",
+      passConditions: [
+        "The HTTP 503 response is classified as TRANSIENT_FAILURE",
+        "Retries stay within the retry limit and use backoff",
+        "The retry is idempotent: no duplicate rows are written",
+        "The final run finishes with result_state SUCCESS",
+      ],
+      implementation: [
+        "Point the job at a mock endpoint that returns HTTP 503 for the first two calls, then 200.",
+        "Assert that the retry policy (count and backoff) is applied.",
+        "Compare row counts to confirm the retry wrote no duplicates.",
+        "Make the test a required check on pull requests that change source connectors or retry settings.",
+      ],
+      ciCommand: "pytest tests/regression/test_transient_retry.py",
     },
   },
   {
@@ -231,6 +300,20 @@ export const FAILURE_TYPES: FailureTypeDef[] = [
       scenario: "Service principal loses SELECT on a source table",
       expectedBehavior: "Missing privilege is identified and access is requested/granted",
       expectedWorkflow: `${WF} → human approval → grant access → rerun → validation`,
+      stage: "Pre-deploy validation, which runs on every pull request and before every deployment",
+      ciBehavior: "The pipeline checks that the job's service principal holds every privilege it needs on its source and target tables. If a grant is missing, the build fails and names the principal, the table, and the missing privilege.",
+      passConditions: [
+        "The service principal has USE CATALOG and USE SCHEMA on every source schema",
+        "The service principal has SELECT on every source table",
+        "The service principal has MODIFY on every target table",
+      ],
+      implementation: [
+        "List the tables the job reads and writes from its definition and lineage.",
+        "Run SHOW GRANTS for the job's service principal on each table in Unity Catalog.",
+        "Fail the build if a required privilege is missing, naming the principal, table and privilege.",
+        "Make the test a required check on every pull request and before each deployment.",
+      ],
+      ciCommand: "pytest tests/regression/test_job_grants.py",
     },
   },
   {
@@ -262,6 +345,20 @@ export const FAILURE_TYPES: FailureTypeDef[] = [
       scenario: "New column appears in a source table",
       expectedBehavior: "Additive schema change is applied and the pipeline recovers",
       expectedWorkflow: `${WF} → human approval → refresh schema → rerun → validation`,
+      stage: "Schema contract test, which runs on every pull request and before every deployment",
+      ciBehavior: "The pipeline compares the live source schema with the job's schema contract. Added columns are reported; removed, renamed or retyped columns fail the build, which names the table and the column.",
+      passConditions: [
+        "Every column the job reads, such as ZZ_PLANT_CATEGORY, exists in the source table with the expected type",
+        "New source columns are added to the contract or explicitly ignored",
+        "No column the job reads was dropped or renamed",
+      ],
+      implementation: [
+        "Keep the expected schema for each source table as a contract file in the repository.",
+        "Read the live schema with DESCRIBE TABLE and compare it with the contract.",
+        "Fail the build on removed, renamed or retyped columns; warn on added columns.",
+        "Make the test a required check on every pull request and before each deployment.",
+      ],
+      ciCommand: "pytest tests/regression/test_schema_contracts.py",
     },
   },
   {
@@ -301,6 +398,21 @@ export const FAILURE_TYPES: FailureTypeDef[] = [
       scenario: "Duplicate material IDs or missing mandatory fields in a source batch",
       expectedBehavior: "Affected records are quarantined, corrected and reloaded, and the data passes validation",
       expectedWorkflow: `Incident created → AI investigation → rejected and escalated to the data engineer → quarantine → correct/reload → validate`,
+      stage: "Data quality gate, which runs on every pull request against a seeded test batch and on every production load",
+      ciBehavior: "A seeded batch with duplicate MATNR values and missing MTART and MEINS is loaded. The pipeline must quarantine the affected rows, keep them out of downstream tables, and escalate to the data engineer without changing any data automatically.",
+      passConditions: [
+        "MATNR is unique in sap_material_master after the load",
+        "No rows with an empty MTART or MEINS reach downstream tables",
+        "The affected rows are written to the quarantine table",
+        "The incident is escalated, not remediated automatically",
+      ],
+      implementation: [
+        "Add a test batch with known duplicate MATNR values and missing MTART and MEINS.",
+        "Define the checks as expectations on sap_material_master (for example DLT expectations or Great Expectations).",
+        "Assert that the affected rows land in quarantine and the clean rows load normally.",
+        "Make the test a required check on pull requests, and keep the same checks as a gate on every production load.",
+      ],
+      ciCommand: "pytest tests/regression/test_material_master_quality.py",
     },
   },
   {
@@ -331,6 +443,20 @@ export const FAILURE_TYPES: FailureTypeDef[] = [
       scenario: "Truncated Parquet files in a source batch",
       expectedBehavior: "Corrupt files are quarantined and valid data is reprocessed",
       expectedWorkflow: `${WF} → human approval → quarantine → reprocess → validation`,
+      stage: "Data quality gate, which runs on every pull request against a seeded test batch",
+      ciBehavior: "A batch containing truncated Parquet files is loaded. The pipeline must detect and quarantine the corrupt files and process the valid ones without failing the whole run.",
+      passConditions: [
+        "Truncated files are detected and moved to quarantine",
+        "Valid files are processed and their row counts match the source",
+        "The run finishes with result_state SUCCESS",
+      ],
+      implementation: [
+        "Add a test batch that includes one or more truncated Parquet files.",
+        "Run the ingest with corrupt-file handling turned on (for example badRecordsPath with a quarantine location).",
+        "Assert that corrupt files land in quarantine and valid row counts match.",
+        "Make the test a required check on pull requests that change ingestion code.",
+      ],
+      ciCommand: "pytest tests/regression/test_corrupt_files.py",
     },
   },
   {
@@ -361,6 +487,21 @@ export const FAILURE_TYPES: FailureTypeDef[] = [
       scenario: "Source connection drops during a Procurement & Sales load",
       expectedBehavior: "Run is classified as a connectivity failure and rerun automatically — no approval needed",
       expectedWorkflow: `${WF} → automatic rerun → validation → resolved`,
+      stage: "Resilience test, which runs on every pull request against a simulated network fault",
+      ciBehavior: "The connection to the SAP source endpoint is dropped partway through the load. The pipeline must classify it as a connectivity failure, rerun automatically, and finish without duplicates.",
+      passConditions: [
+        "The socket timeout is classified as CONNECTIVITY_FAILURE",
+        "The automatic rerun stays within the retry limit",
+        "No duplicate or partial rows are left after the rerun",
+        "The final run finishes with result_state SUCCESS",
+      ],
+      implementation: [
+        "Run the load through a proxy that drops the source connection partway through.",
+        "Assert that the failure is classified correctly and the rerun starts automatically.",
+        "Compare row counts to confirm the rerun is idempotent.",
+        "Make the test a required check on pull requests that change source connectors or network settings.",
+      ],
+      ciCommand: "pytest tests/regression/test_connectivity_rerun.py",
     },
   },
   {
@@ -392,6 +533,20 @@ export const FAILURE_TYPES: FailureTypeDef[] = [
       scenario: "Four consecutive failures with no successful run in between",
       expectedBehavior: "Automatic retries stop and the incident is escalated to a human",
       expectedWorkflow: `${WF} → stop retry loop → email escalation`,
+      stage: "Integration test, which runs nightly in the staging workspace",
+      ciBehavior: "A staging job is made to fail four runs in a row. Sentinel must stop automatic retries and escalate the incident to the pipeline owner by email.",
+      passConditions: [
+        "No automatic retry runs after the fourth consecutive failure",
+        "The incident is classified as REPEATED_FAILURE",
+        "An escalation email is sent to the pipeline owner",
+      ],
+      implementation: [
+        "Make a staging job fail on purpose four times in a row (for example with an invalid test parameter).",
+        "Assert that Sentinel stops the retry loop at the limit.",
+        "Assert that the escalation email is recorded for the owner.",
+        "Schedule the test nightly in staging.",
+      ],
+      ciCommand: "pytest tests/regression/test_retry_limit.py",
     },
   },
 ];
