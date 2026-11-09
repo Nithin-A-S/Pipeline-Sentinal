@@ -222,7 +222,7 @@ export const FAILURE_TYPES: FailureTypeDef[] = [
     index: 4,
     label: "Transient Failure",
     recommendation: "CONTROLLED_RETRY",
-    recommendationText: "Retry the pipeline with a controlled retry",
+    recommendationText: "Rerun the pipeline automatically, up to the retry limit",
     remediationLabel: "Controlled retry",
     autoRemediable: true,
     autoRun: true,
