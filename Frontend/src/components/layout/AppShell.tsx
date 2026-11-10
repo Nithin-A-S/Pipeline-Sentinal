@@ -1,13 +1,9 @@
 "use client";
 
 import { useEffect, type ReactNode } from "react";
-import dynamic from "next/dynamic";
 import { Sidebar } from "./Sidebar";
 import { Topbar } from "./Topbar";
 import { useOps } from "@/ops/store";
-
-// Genie is only needed once someone opens it, so keep it out of the initial bundle.
-const ChatLauncher = dynamic(() => import("@/components/chat/ChatLauncher").then((m) => m.ChatLauncher), { ssr: false });
 
 function PageSkeleton() {
   return (
@@ -62,7 +58,6 @@ export function AppShell({ children }: { children: ReactNode }) {
           {ready ? children : <PageSkeleton />}
         </main>
       </div>
-      <ChatLauncher />
     </div>
   );
 }

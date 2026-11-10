@@ -11,10 +11,23 @@ const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL ?? "";
 
 export class ApiError extends Error {
   status: number;
-  constructor(message: string, status: number) {
+  /** The server's own explanation: FastAPI's `detail`, or this app's proxy `error`. */
+  detail: string | null;
+  constructor(message: string, status: number, detail: string | null = null) {
     super(message);
     this.name = "ApiError";
     this.status = status;
+    this.detail = detail;
+  }
+}
+
+async function errorDetail(res: Response): Promise<string | null> {
+  try {
+    const body = (await res.json()) as { detail?: unknown; error?: unknown };
+    const d = body.detail ?? body.error;
+    return typeof d === "string" ? d : d ? JSON.stringify(d) : null;
+  } catch {
+    return null;
   }
 }
 
@@ -37,7 +50,7 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
     },
   });
   if (!res.ok) {
-    throw new ApiError(`Request to ${path} failed with ${res.status}`, res.status);
+    throw new ApiError(`Request to ${path} failed with ${res.status}`, res.status, await errorDetail(res));
   }
   if (res.status === 204) return undefined as T;
   return (await res.json()) as T;

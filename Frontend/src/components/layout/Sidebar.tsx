@@ -16,7 +16,7 @@ export function SidebarFooter() {
         <p className="mt-1.5 font-mono text-[10px] leading-relaxed text-text-tertiary">
           Production · Unity Catalog
           <br />
-          Genie · Investigation · SLA · DQ
+          Investigation · SLA · DQ
         </p>
       </div>
     </div>
