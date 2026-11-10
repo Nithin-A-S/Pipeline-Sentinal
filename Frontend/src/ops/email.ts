@@ -171,7 +171,7 @@ export function buildEmail(incident: Incident): EmailDraft {
     ...resolution.map((s, i) => `${i + 1}. ${s}`),
     "",
     `Recommended action: ${def.recommendationText}`,
-    `Incident: /incidents/${incident.id}`,
+    `Incident: ${incident.id}`,
     "",
     "— Sentinel, AI-powered pipeline operations",
   ].join("\n");

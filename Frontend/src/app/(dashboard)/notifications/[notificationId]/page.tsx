@@ -105,7 +105,24 @@ export default function NotificationDetailPage() {
         <Card>
           <CardHeader title="Email content" />
           <CardBody>
-            <pre className="whitespace-pre-wrap rounded-lg border border-border bg-surface-subtle p-4 font-sans text-sm leading-relaxed text-text-secondary">{n.body}</pre>
+            <pre className="whitespace-pre-wrap rounded-lg border border-border bg-surface-subtle p-4 font-sans text-sm leading-relaxed text-text-secondary">
+              {n.body.split("\n").map((line, i) => {
+                // Under the "Incident: INC-…" line: a "View incident" placeholder link (not clickable yet).
+                const isIncidentLine = /^Incident: INC-[A-Z0-9]+$/.test(line);
+                return (
+                  <span key={i}>
+                    {line}
+                    {isIncidentLine && (
+                      <>
+                        {"\n"}
+                        <span className="cursor-default text-text-tertiary underline underline-offset-2">View incident</span>
+                      </>
+                    )}
+                    {"\n"}
+                  </span>
+                );
+              })}
+            </pre>
           </CardBody>
         </Card>
       </div>
