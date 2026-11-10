@@ -90,7 +90,7 @@ const CUSTOM_EMAILS: Record<string, (i: Incident, first: string) => CustomEmail>
       body: [
         `Hi ${first},`,
         "",
-        `Sentinel detected a data quality failure in the pipeline ${i.pipeline} (${COUNTRY_LABEL[i.country]}) at ${longUtc(i.detectedAt)} and created incident ${i.id}.`,
+        `Sentinel detected and triaged a data quality failure in the ${i.pipeline} (${COUNTRY_LABEL[i.country]}) pipeline at ${longUtc(i.detectedAt)}, and created incident ${i.id}.`,
         "",
         "The AI investigation identified duplicate material identifiers and missing mandatory attributes in the SAP Material Master extract. As these issues require business-rule validation and source-data correction, automated remediation is not permitted. The incident has been escalated for engineer intervention.",
         "",
